@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "ls"
+version = "0.1.0"
+description = ""
+authors = ["namihira33 <syuntakosu1011@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.21.0"
+matplotlib = "^3.4.2"
+torch = "^1.9.0"
+torchvision = "^0.10.0"
+sklearn = "^0.0"
+tqdm = "^4.61.2"
+ipykernel = "^6.0.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
