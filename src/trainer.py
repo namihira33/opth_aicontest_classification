@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import pickle
+
 import config
 from network import Vgg16
 from Dataset import load_dataloader
@@ -61,9 +63,11 @@ class Trainer():
             self.execute_epoch(epoch, 'train')
             self.execute_epoch(epoch, 'test')
         
-        #訓練後、モデルをセーブする。
+        #訓練後、モデルをセーブする。バグを治すための文。
         model_save_path = os.path.join(config.MODEL_DIR_PATH,'model.pkl')
-        torch.save(self.net.state_dict(),model_save_path)
+        with open(model_save_path,'wb') as f:
+            pickle.dump(self.log_path,f)
+        #torch.save(self.net.state_dict(),model_save_path)
 
         
         img_file_path = "./data/ChestXray001.jpg"
