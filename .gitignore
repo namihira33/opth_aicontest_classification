@@ -3,8 +3,6 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 .python-version
 
-data/model.pkl
-
 .python_version
 
 ### Python ###
