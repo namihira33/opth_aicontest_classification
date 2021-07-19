@@ -86,15 +86,17 @@ def load_dataloader(batch_size):
         ChestXrayDataset(root=config.data_root,
                                   image_list_file=config.valid_image_list,
                                   transform=valid_transform)
-    train_dataloader = \
+    dataloader = {}
+    
+    dataloader['train'] = \
         torch.utils.data.DataLoader(train_dataset,
                                     batch_size=batch_size,
                                     num_workers=4)
-    valid_dataloader = \
+    dataloader['test'] = \
         torch.utils.data.DataLoader(valid_dataset,
                                     batch_size=batch_size,
                                     num_workers=4)
-    return train_dataloader, valid_dataloader
+    return dataloader
 
 
 def load_dataloader_binary(batch_size):
@@ -126,10 +128,10 @@ def load_dataloader_binary(batch_size):
                                     num_workers=4)
     return train_dataloader, valid_dataloader
 
+bs = 4
+dataloader = load_dataloader(bs)
 
-train_dataloader,valid_dataloader = load_dataloader(4)
-
-batch_iterator = iter(train_dataloader)
+batch_iterator = iter(dataloader['train'])
 inputs,labels = next(batch_iterator)
 
 print(inputs.size())
