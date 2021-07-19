@@ -13,6 +13,7 @@ torchvision = "^0.10.0"
 sklearn = "^0.0"
 tqdm = "^4.61.2"
 ipykernel = "^6.0.1"
+skorch = "^0.10.0"
 
 [tool.poetry.dev-dependencies]
 
