@@ -47,7 +47,8 @@ class ChestXrayDatasetBase(Dataset):
         return image, torch.FloatTensor(label)
 
     def __len__(self):
-        return len(self.image_names)
+        #return len(self.image_names)
+        return 1000
 
     def get_label(self, label_base):
         pass
@@ -91,11 +92,11 @@ def load_dataloader(batch_size):
     dataloader['train'] = \
         torch.utils.data.DataLoader(train_dataset,
                                     batch_size=batch_size,
-                                    num_workers=4)
+                                    num_workers=8)
     dataloader['test'] = \
         torch.utils.data.DataLoader(valid_dataset,
                                     batch_size=batch_size,
-                                    num_workers=4)
+                                    num_workers=8)
     return dataloader
 
 
@@ -128,11 +129,11 @@ def load_dataloader_binary(batch_size):
                                     num_workers=4)
     return train_dataloader, valid_dataloader
 
-bs = 4
-dataloader = load_dataloader(bs)
+#bs = 4
+#dataloader = load_dataloader(bs)
 
-batch_iterator = iter(dataloader['train'])
-inputs,labels = next(batch_iterator)
+#batch_iterator = iter(dataloader['train'])
+#inputs,labels = next(batch_iterator)
 
-print(inputs.size())
-print(labels)
+#print(inputs.size())
+#print(labels)
