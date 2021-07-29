@@ -3,11 +3,10 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 .python-version
 
-.python_version
-
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__
 *.py[cod]
 *$py.class
 
@@ -144,5 +143,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+#log file
+log
 
 # End of https://www.toptal.com/developers/gitignore/api/python
