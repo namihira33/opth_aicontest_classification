@@ -7,15 +7,15 @@ import os
 import numpy as np
 
 
-class ChestXrayDatasetBase(Dataset):
+class NuclearCataractDatasetBase(Dataset):
     def __init__(self, root, image_list_file, transform=None):
         image_names = []
         labels = []
         with open(image_list_file, "r") as f:
             for line in f:
-                items = line.split()
-                image_name = items[0]
-                label = self.get_label(items[1])
+                items = line.split(',')
+                image_name = '{:0=4}.format(items[0])' + '.jpg'
+                label = self.get_label(items[3])
                 image_name = os.path.join(root, image_name)
                 image_names.append(image_name)
                 labels.append(label)
@@ -23,7 +23,7 @@ class ChestXrayDatasetBase(Dataset):
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
         self.transform = transform
-        self.label_names = ['Atelectasis',
+        '''self.label_names = ['Atelectasis',
                             'Cardiomegaly',
                             'Effusion',
                             'Infiltration',
@@ -36,7 +36,7 @@ class ChestXrayDatasetBase(Dataset):
                             'Emphysema',
                             'Fibrosis',
                             'Pleural_Thickening',
-                            'Hernia']
+                            'Hernia'] '''
 
     def __getitem__(self, index):
         image_name = self.image_names[index]
@@ -47,14 +47,14 @@ class ChestXrayDatasetBase(Dataset):
         return image, torch.FloatTensor(label)
 
     def __len__(self):
-        #return len(self.image_names)
-        return 1000
+        return len(self.image_names)
+        #return 1000
 
     def get_label(self, label_base):
         pass
 
-
-class ChestXrayDatasetBinary(ChestXrayDatasetBase):
+'''
+class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
     def get_label(self, label_base):
         if sum([int(i) for i in label_base]) != 0:
             # with disease
@@ -62,9 +62,10 @@ class ChestXrayDatasetBinary(ChestXrayDatasetBase):
         else:
             # without disease
             return [0]
+            '''
         
 
-class ChestXrayDataset(ChestXrayDatasetBase):
+class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
         return [int(i) for i in label_base]
 
@@ -80,12 +81,12 @@ def load_dataloader(batch_size):
                             transforms.Normalize([0.485, 0.456, 0.406],
                                                  [0.229, 0.224, 0.225])])
     train_dataset = \
-        ChestXrayDataset(root=config.data_root,
-                                  image_list_file=config.train_image_list,
+        NuclearCataractDataset(root=config.data_root,
+                                  image_list_file=config.train_imfo_list,
                                   transform=train_transform)
     valid_dataset = \
-        ChestXrayDataset(root=config.data_root,
-                                  image_list_file=config.valid_image_list,
+        NuclearCataractDataset(root=config.data_root,
+                                  image_list_file=config.valid_imfo_list,
                                   transform=valid_transform)
     dataloader = {}
     
@@ -100,6 +101,7 @@ def load_dataloader(batch_size):
     return dataloader
 
 
+'''
 def load_dataloader_binary(batch_size):
     train_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
@@ -112,12 +114,12 @@ def load_dataloader_binary(batch_size):
                             transforms.Normalize([0.485, 0.456, 0.406],
                                                  [0.229, 0.224, 0.225])])
     train_dataset = \
-        ChestXrayDatasetBinary(root=config.data_root,
-                                        image_list_file=config.train_image_list,
+        NuclearCataractDatasetBinary(root=config.data_root,
+                                        image_list_file=config.train_imfo_list,
                                         transform=train_transform)
     valid_dataset = \
-        ChestXrayDatasetBinary(root=config.data_root,
-                                        image_list_file=config.valid_image_list,
+        NuclearCataractDatasetBinary(root=config.data_root,
+                                        image_list_file=config.valid_imfo_list,
                                         transform=valid_transform)
     train_dataloader = \
         torch.utils.data.DataLoader(train_dataset,
@@ -128,6 +130,7 @@ def load_dataloader_binary(batch_size):
                                     batch_size=batch_size,
                                     num_workers=4)
     return train_dataloader, valid_dataloader
+    '''
 
 #bs = 4
 #dataloader = load_dataloader(bs)
