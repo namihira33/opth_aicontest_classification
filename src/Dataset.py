@@ -5,6 +5,7 @@ import config
 from PIL import Image
 import os
 import numpy as np
+from utils import isint
 
 
 class NuclearCataractDatasetBase(Dataset):
@@ -14,11 +15,12 @@ class NuclearCataractDatasetBase(Dataset):
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split(',')
-                image_name = '{:0=4}.format(items[0])' + '.jpg'
-                label = self.get_label(items[3])
-                image_name = os.path.join(root, image_name)
-                image_names.append(image_name)
-                labels.append(label)
+                if isint(items[0]):
+                    image_name = "{:0=4}".format(int(float(items[0]))) + '.jpg'
+                    label = self.get_label(int(items[4][0]))
+                    image_name = os.path.join(root, image_name)
+                    image_names.append(image_name)
+                    labels.append(label[0])
 
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
@@ -67,7 +69,7 @@ class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
 
 class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
-        return [int(i) for i in label_base]
+        return [label_base]
 
 def load_dataloader(batch_size):
     train_transform = \

@@ -18,3 +18,11 @@ def iterate(d, param={}):
                 return d_list
 
     return [[d, param]]
+
+def isint(s):
+    try:
+        int(s)
+    except ValueError:
+        return False
+    else:
+        return True
