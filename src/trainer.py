@@ -19,7 +19,7 @@ from sklearn.model_selection import KFold
 
 from utils  import iterate
 import config
-from network import Vgg16
+from network import Vgg16,Resnet18
 from Dataset import load_dataloader
 
 import csv
@@ -65,21 +65,21 @@ class Trainer():
             torch.manual_seed(self.c['seed'])
 
             if self.c['model_name'] == 'Vgg16':
-                self.net = Vgg16()#.to(device)
+                self.net = Vgg16().to(device)
             elif self.c['model_name'] == 'Resnet18':
-                self.net = Resnet18()
+                self.net = Resnet18().to(device)
 
-            params_to_update = []
-            update_param_names = ["net.classifier.6.weight","net.classifier.6.bias"]
+            #params_to_update = []
+            #update_param_names = ["net.classifier.6.weight","net.classifier.6.bias"]
 
-            for name,param in self.net.named_parameters():
-                if name in update_param_names:
-                    param.requires_grad = True
-                    params_to_update.append(param)
-                else:
-                    param.requires_grad = False
+            #for name,param in self.net.named_parameters():
+            #    if name in update_param_names:
+            #        param.requires_grad = True
+            #        params_to_update.append(param)
+            #    else:
+            #        param.requires_grad = False
 
-            self.optimizer = optim.SGD(params=params_to_update,lr=self.c['lr'],momentum=0.9)
+            self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
             self.criterion = nn.BCEWithLogitsLoss()
             self.net = nn.DataParallel(self.net)
 
@@ -93,10 +93,12 @@ class Trainer():
             for learning_index,valid_index in kf.split(self.dataset['train']):
                 learning_dataset = Subset(self.dataset['train'],learning_index)
                 print(learning_index)
-                self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],shuffle=True)
+                self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],
+                shuffle=True,num_workers=os.cpu_count())
                 valid_dataset = Subset(self.dataset['train'],valid_index)
                 print(valid_index)
-                self.dataloaders['test'] = DataLoader(valid_dataset,self.c['bs'],shuffle=True)
+                self.dataloaders['valid'] = DataLoader(valid_dataset,self.c['bs'],
+                shuffle=True,num_workers=os.cpu_count())
                 cv = 0
                 loss_sum = 0
 
@@ -110,7 +112,7 @@ class Trainer():
                         self.bestparam = self.c
                         self.bestparam['epoch'] = epoch
                         self.bestparam['auc'] = auc
-                cv += loss_sum / kf.n_split
+                cv += loss_sum / kf.n_splits
             print(cv)
             
         print(self.bestparam)
@@ -171,8 +173,8 @@ class Trainer():
             self.net.eval()
 
         for inputs_, labels_ in tqdm(self.dataloaders[phase]):
-            inputs_ = inputs_#.to(device)
-            labels_ = labels_#.to(device)
+            inputs_ = inputs_.to(device)
+            labels_ = labels_.to(device)
             self.optimizer.zero_grad()
 
             with torch.set_grad_enabled(phase == 'learning'):
@@ -191,6 +193,7 @@ class Trainer():
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
         total_loss /= len(preds)
+
         auc = roc_auc_score(labels, preds)
 
         print(

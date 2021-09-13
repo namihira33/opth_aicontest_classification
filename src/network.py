@@ -17,6 +17,7 @@ class Resnet18(nn.Module):
         super().__init__()
         self.net = models.resnet18()
         self.net.conv1 = nn.Conv2d(1,64,7,stride=(2,2),padding=(3,3))
+        self.net.fc = nn.Linear(in_features=512,out_features=1)
 
     def forward(self,x):
         return self.net(x)

@@ -12,12 +12,13 @@ class NuclearCataractDatasetBase(Dataset):
     def __init__(self, root, image_list_file, transform=None):
         image_names = []
         labels = []
+
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split(',')
                 if isint(items[2]):
                     label = self.get_label(int(items[6][0]))
-                    label[0] = 1 if (label[0]>=2) else 0
+                    
                     for i in range(16):
                         image_name = items[2] + '_' + items[3] + '_' + '{:0=3}'.format(int(i)) + '.jpg'
                         image_name = os.path.join(root,image_name)
@@ -66,9 +67,9 @@ class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
 class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
         if label_base == 1:
-            return [1]
-        else:
             return [0]
+        else:
+            return [1]
 
 def load_dataloader(batch_size):
     train_transform = \
@@ -91,7 +92,6 @@ def load_dataloader(batch_size):
     dataset['test'] = \
         NuclearCataractDataset(root=config.data_root,
                                   image_list_file=config.test_info_list,
-    
                                   transform=test_transform)
 
     return dataset

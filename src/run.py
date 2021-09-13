@@ -1,8 +1,8 @@
 from trainer import Trainer
 
 c = {
-    'model_name': 'Vgg16',
-    'seed': [0,10,100,1000], 'bs': 16, 'lr': [1e-4,5e-4,1e-3,5e-3,1e-2,5e-2,1e-1,5e-1], 'n_epoch': [1]
+    'model_name': ['Vgg16','Resnet18'],
+    'seed': [0], 'bs': 64, 'lr': [1e-4,5e-4], 'n_epoch': [1,5,10,20]
 }
 
 trainer = Trainer(c)
