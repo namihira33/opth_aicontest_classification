@@ -13,6 +13,9 @@ from PIL import Image
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data.dataset import Subset
+from torch.utils.data import DataLoader 
+from sklearn.model_selection import KFold
 
 from utils  import iterate
 import config
@@ -33,6 +36,7 @@ def sigmoid(x):
 
 class Trainer():
     def __init__(self, c):
+        self.dataloaders = {}
         self.search = c
         now = '{:%y%m%d-%H:%M}'.format(datetime.now())
         self.log_path = os.path.join(config.LOG_DIR_PATH,
@@ -60,9 +64,10 @@ class Trainer():
             random.seed(self.c['seed'])
             torch.manual_seed(self.c['seed'])
 
-            self.net = Vgg16().to(device)
-            self.dataloaders = load_dataloader(
-                self.c['bs'])
+            if self.c['model_name'] == 'Vgg16':
+                self.net = Vgg16()#.to(device)
+            elif self.c['model_name'] == 'Resnet18':
+                self.net = Resnet18()
 
             params_to_update = []
             update_param_names = ["net.classifier.6.weight","net.classifier.6.bias"]
@@ -78,15 +83,35 @@ class Trainer():
             self.criterion = nn.BCEWithLogitsLoss()
             self.net = nn.DataParallel(self.net)
 
-            for epoch in range(1, self.c['n_epoch']+1):
-                self.execute_epoch(epoch, 'train')
-                auc = self.execute_epoch(epoch, 'test')
+            #K分割交差検証による実装
+            self.dataset = load_dataloader(self.c['bs'])
+            kf = KFold()
 
-                if max_auc < auc:
-                    max_auc = auc
-                    self.bestparam = self.c
-                    self.bestparam['epoch'] = epoch
-                    self.bestparam['auc'] = auc
+            cv = 0
+
+
+            for learning_index,valid_index in kf.split(self.dataset['train']):
+                learning_dataset = Subset(self.dataset['train'],learning_index)
+                print(learning_index)
+                self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],shuffle=True)
+                valid_dataset = Subset(self.dataset['train'],valid_index)
+                print(valid_index)
+                self.dataloaders['test'] = DataLoader(valid_dataset,self.c['bs'],shuffle=True)
+                cv = 0
+                loss_sum = 0
+
+                for epoch in range(1, self.c['n_epoch']+1):
+                    self.execute_epoch(epoch, 'learning')
+                    auc,loss = self.execute_epoch(epoch, 'valid')
+                    loss_sum += loss
+                
+                    if max_auc < auc:
+                        max_auc = auc
+                        self.bestparam = self.c
+                        self.bestparam['epoch'] = epoch
+                        self.bestparam['auc'] = auc
+                cv += loss_sum / kf.n_split
+            print(cv)
             
         print(self.bestparam)
         result_best = [self.bestparam['model_name'],self.bestparam['lr'],self.bestparam['seed'],self.bestparam['n_epoch'],self.bestparam['auc']]
@@ -140,21 +165,21 @@ class Trainer():
 
     def execute_epoch(self, epoch, phase):
         preds, labels, total_loss = [], [], 0
-        if phase == 'train':
+        if phase == 'learning':
             self.net.train()
         else:
             self.net.eval()
 
         for inputs_, labels_ in tqdm(self.dataloaders[phase]):
-            inputs_ = inputs_.to(device)
-            labels_ = labels_.to(device)
+            inputs_ = inputs_#.to(device)
+            labels_ = labels_#.to(device)
             self.optimizer.zero_grad()
 
-            with torch.set_grad_enabled(phase == 'train'):
+            with torch.set_grad_enabled(phase == 'learning'):
                 outputs_ = self.net(inputs_)
                 loss = self.criterion(outputs_, labels_)
 
-                if phase == 'train':
+                if phase == 'learning':
                     loss.backward(retain_graph=True)
                     self.optimizer.step()
 
@@ -195,4 +220,4 @@ class Trainer():
             writer.writerow('-------Log File------')
         '''
 
-        return auc
+        return auc,total_loss

@@ -15,38 +15,34 @@ class NuclearCataractDatasetBase(Dataset):
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split(',')
-                if isint(items[0]):
-                    image_name = "{:0=4}".format(int(float(items[0]))) + '.jpg'
-                    label = self.get_label(int(items[4][0]))
-                    image_name = os.path.join(root, image_name)
-                    image_names.append(image_name)
-                    labels.append(label[0])
+                if isint(items[2]):
+                    label = self.get_label(int(items[6][0]))
+                    label[0] = 1 if (label[0]>=2) else 0
+                    for i in range(16):
+                        image_name = items[2] + '_' + items[3] + '_' + '{:0=3}'.format(int(i)) + '.jpg'
+                        image_name = os.path.join(root,image_name)
+                        image_names.append(image_name)
+                        labels.append(label[0])
 
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
         self.transform = transform
-        '''self.label_names = ['Atelectasis',
-                            'Cardiomegaly',
-                            'Effusion',
-                            'Infiltration',
-                            'Mass',
-                            'Nodule',
-                            'Pneumonia',
-                            'Pneumothorax',
-                            'Consolidation',
-                            'Edema',
-                            'Emphysema',
-                            'Fibrosis',
-                            'Pleural_Thickening',
-                            'Hernia'] '''
+        '''self.label_names = ['Nondisease',
+                            'Mild',
+                            'Moderateness',
+                            'Severe'] '''
 
     def __getitem__(self, index):
         image_name = self.image_names[index]
-        image = Image.open(image_name).convert('RGB')
+        image = Image.open(image_name).convert('L')
         label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
-        return image, torch.FloatTensor(label)
+        if label == 1:
+            label = 0
+        else:
+            label = 1
+        return image,torch.Tensor([label])
 
     def __len__(self):
         return len(self.image_names)
@@ -69,76 +65,48 @@ class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
 
 class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
-        return [label_base]
+        if label_base == 1:
+            return [1]
+        else:
+            return [0]
 
 def load_dataloader(batch_size):
     train_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
+                            transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
-                            transforms.Normalize([0.485, 0.456, 0.406],
-                                                 [0.229, 0.224, 0.225])])
-    valid_transform = \
+                            transforms.Normalize((0.5, ),
+                                                 (0.5, ))])
+    test_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
+                            transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
-                            transforms.Normalize([0.485, 0.456, 0.406],
-                                                 [0.229, 0.224, 0.225])])
-    train_dataset = \
+                            transforms.Normalize((0.5, ),
+                                                 (0.5, ))])
+    dataset = {}
+    dataset['train'] = \
         NuclearCataractDataset(root=config.data_root,
-                                  image_list_file=config.train_imfo_list,
+                                  image_list_file=config.train_info_list,
                                   transform=train_transform)
-    valid_dataset = \
+    dataset['test'] = \
         NuclearCataractDataset(root=config.data_root,
-                                  image_list_file=config.valid_imfo_list,
-                                  transform=valid_transform)
+                                  image_list_file=config.test_info_list,
+    
+                                  transform=test_transform)
+
+    return dataset
+    '''
+    CV実装のため、データセットのみの実装
     dataloader = {}
     
     dataloader['train'] = \
         torch.utils.data.DataLoader(train_dataset,
                                     batch_size=batch_size,
-                                    num_workers=8)
+                                    num_workers=0)
     dataloader['test'] = \
-        torch.utils.data.DataLoader(valid_dataset,
+        torch.utils.data.DataLoader(test_dataset,
                                     batch_size=batch_size,
-                                    num_workers=8)
+                                    num_workers=0)
     return dataloader
-
-
-'''
-def load_dataloader_binary(batch_size):
-    train_transform = \
-        transforms.Compose([transforms.Resize(config.image_size),
-                            transforms.ToTensor(),
-                            transforms.Normalize([0.485, 0.456, 0.406],
-                                                 [0.229, 0.224, 0.225])])
-    valid_transform = \
-        transforms.Compose([transforms.Resize(config.image_size),
-                            transforms.ToTensor(),
-                            transforms.Normalize([0.485, 0.456, 0.406],
-                                                 [0.229, 0.224, 0.225])])
-    train_dataset = \
-        NuclearCataractDatasetBinary(root=config.data_root,
-                                        image_list_file=config.train_imfo_list,
-                                        transform=train_transform)
-    valid_dataset = \
-        NuclearCataractDatasetBinary(root=config.data_root,
-                                        image_list_file=config.valid_imfo_list,
-                                        transform=valid_transform)
-    train_dataloader = \
-        torch.utils.data.DataLoader(train_dataset,
-                                    batch_size=batch_size,
-                                    num_workers=4)
-    valid_dataloader = \
-        torch.utils.data.DataLoader(valid_dataset,
-                                    batch_size=batch_size,
-                                    num_workers=4)
-    return train_dataloader, valid_dataloader
     '''
 
-#bs = 4
-#dataloader = load_dataloader(bs)
-
-#batch_iterator = iter(dataloader['train'])
-#inputs,labels = next(batch_iterator)
-
-#print(inputs.size())
-#print(labels)
