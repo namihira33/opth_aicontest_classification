@@ -40,7 +40,7 @@ class Trainer():
         self.search = c
         now = '{:%y%m%d-%H:%M}'.format(datetime.now())
         self.log_path = os.path.join(config.LOG_DIR_PATH,
-                                str(now) + '_' + c['model_name'])
+                                str(now))
         os.makedirs(self.log_path, exist_ok=True)
 
         with open(self.log_path + "/log.csv",'w') as f:
@@ -175,11 +175,13 @@ class Trainer():
         for inputs_, labels_ in tqdm(self.dataloaders[phase]):
             inputs_ = inputs_.to(device)
             labels_ = labels_.to(device)
+            print(inputs_.shape,labels_.shape)
             self.optimizer.zero_grad()
 
             with torch.set_grad_enabled(phase == 'learning'):
                 outputs_ = self.net(inputs_)
                 loss = self.criterion(outputs_, labels_)
+                print(loss)
 
                 if phase == 'learning':
                     loss.backward(retain_graph=True)
