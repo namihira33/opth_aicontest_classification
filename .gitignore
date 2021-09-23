@@ -147,4 +147,9 @@ cython_debug/
 #log file
 log
 
+#model
+model/
+*.pth
+*.ipynob
+
 # End of https://www.toptal.com/developers/gitignore/api/python

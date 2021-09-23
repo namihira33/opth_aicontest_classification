@@ -16,14 +16,14 @@ class NuclearCataractDatasetBase(Dataset):
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split(',')
-                if isint(items[2]):
-                    label = self.get_label(int(items[6][0]))
+                if isint(items[1]):
+                    label = self.get_label(int(items[1]))
                     
-                    for i in range(16):
-                        image_name = items[2] + '_' + items[3] + '_' + '{:0=3}'.format(int(i)) + '.jpg'
-                        image_name = os.path.join(root,image_name)
-                        image_names.append(image_name)
-                        labels.append(label[0])
+                    image_name = items[0]
+                    image_name = os.path.join(root,image_name)
+                    image_names.append(image_name)
+                    labels.append(label[0])
+
 
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
@@ -39,10 +39,6 @@ class NuclearCataractDatasetBase(Dataset):
         label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
-        if label == 1:
-            label = 0
-        else:
-            label = 1
         return image,torch.Tensor([label])
 
     def __len__(self):
@@ -66,10 +62,7 @@ class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
 
 class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
-        if label_base == 1:
-            return [0]
-        else:
-            return [1]
+        return [label_base]
 
 def load_dataloader(batch_size):
     train_transform = \
