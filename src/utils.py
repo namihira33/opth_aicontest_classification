@@ -1,3 +1,10 @@
+import torch.nn as nn
+import numpy as np
+import math
+
+def sigmoid(x):
+    return 1/(1+np.exp(-x))
+
 def iterate(d, param={}):
     d, param = d.copy(), param.copy()
     d_list = []
@@ -26,3 +33,15 @@ def isint(s):
         return False
     else:
         return True
+
+def init_weights(m):
+    if isinstance(m,nn.Conv2d) or isinstance(m,nn.Linear):
+        nn.init.kaiming_uniform_(m.weight.data,a=math.sqrt(5))
+        if m.bias is not None:
+            fan_in,_ = nn.init._calculate_fan_in_and_fan_out(m.weight.data)
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(m.bias.data,-bound,bound)
+            
+    elif isinstance(m,nn.BatchNorm2d):
+        nn.init.constant_(m.weight,1)
+        nn.init.constant_(m.bias,0)

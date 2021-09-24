@@ -16,13 +16,14 @@ class NuclearCataractDatasetBase(Dataset):
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split(',')
-                if isint(items[1]):
-                    label = self.get_label(int(items[1]))
+                if isint(items[2]):
+                    label = self.get_label(int(items[2]))
                     
-                    image_name = items[0]
+                    image_name = items[1]
                     image_name = os.path.join(root,image_name)
                     image_names.append(image_name)
                     labels.append(label[0])
+
 
 
         self.image_names = np.array(image_names)
@@ -35,7 +36,7 @@ class NuclearCataractDatasetBase(Dataset):
 
     def __getitem__(self, index):
         image_name = self.image_names[index]
-        image = Image.open(image_name).convert('L')
+        image = Image.open(image_name).convert('RGB')
         label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
@@ -69,14 +70,14 @@ def load_dataloader(batch_size):
         transforms.Compose([transforms.Resize(config.image_size),
                             transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
-                            transforms.Normalize((0.5, ),
-                                                 (0.5, ))])
+                            transforms.Normalize([0.485,0.456,0.406],
+                                                 [0.229,0.224,0.225])])
     test_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
                             transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
-                            transforms.Normalize((0.5, ),
-                                                 (0.5, ))])
+                            transforms.Normalize([0.485,0.456,0.406],
+                                                 [0.229,0.224,0.225])])
     dataset = {}
     dataset['train'] = \
         NuclearCataractDataset(root=config.data_root,

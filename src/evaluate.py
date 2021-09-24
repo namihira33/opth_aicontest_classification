@@ -5,7 +5,7 @@ import random
 
 from tqdm import tqdm
 import numpy as np
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 
 import config
@@ -13,11 +13,8 @@ import torch
 
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data.dataset import Subset
-from torch.utils.data import DataLoader 
-from sklearn.model_selection import KFold
 
-from utils  import iterate
+from torch.utils.data import DataLoader 
 from network import Vgg16,Resnet18
 from Dataset import load_dataloader
 
@@ -78,8 +75,6 @@ class Evaluater():
             labels = np.concatenate(labels)
             total_loss /= len(preds)
 
-            threshold = 0.5
-
             worst_id = np.argmax(preds-labels)
             worst = (preds-labels).max()
 
@@ -87,14 +82,18 @@ class Evaluater():
 
             print(preds[worst_id],labels[worst_id])
 
+            threshold = 0.5
             right += ((preds-labels) < threshold).sum()
             notright += len(preds) - ((preds - labels) < threshold).sum()
 
             accuracy = right / len(test_dataset)
             mae = mean_absolute_error(preds,labels)
+            mse = mean_squared_error(preds,labels)
             print('accuracy :',accuracy)
-            print('mae :',mae)
-            print('ae : ',mae*len(preds))
+            print('MAE :',mae)
+            print('AE : ',mae*len(preds))
+            print('MSE',mse)
+            print('SE',mse*len(preds))
 
 
 
