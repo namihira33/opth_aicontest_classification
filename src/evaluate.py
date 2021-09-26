@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import DataLoader 
-from network import Vgg16,Resnet18
+from network import *
 from Dataset import load_dataloader
 
 import matplotlib.pyplot as plt
@@ -59,10 +59,35 @@ class Evaluater():
         self.c['n_epoch'] = '{:0=3}'.format(int(target_data[3]))
         temp = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep.pth'
         model_path = os.path.join(config.MODEL_DIR_PATH,temp)
-        if self.c['model_name'] == 'Vgg16':
-                self.net = Vgg16().to(device)
-        elif self.c['model_name'] == 'Resnet18':
-                self.net = Resnet18().to(device)
+
+        mn = self.c['model_name']
+
+        if mn == 'Vgg16':
+             self.net = Vgg16()
+        elif mn == 'Vgg16_bn':
+            self.net = Vgg16_bn()
+        elif mn == 'Vgg19':
+            self.net = Vgg19()
+        elif mn == 'Vgg19_bn':
+            self.net = Vgg19_bn()
+        elif mn == 'Resnet18':
+            self.net = Resnet18()
+        elif mn == 'Resnet34':
+            self.net = Resnet34()
+        elif mn == 'Resnet50':
+            self.net = Resnet50()
+        elif mn == 'Squeezenet':
+            self.net = Squeezenet()
+        elif mn == 'Densenet':
+            self.net = Densenet()
+        elif mn == 'Inception':
+            self.net = Inception()
+        elif mn == 'Mobilenet_large':
+            self.net = Mobilenet_large()
+        elif mn == 'Mobilenet_small':
+            self.net = Mobilenet_small()
+
+        self.net = self.net.to(device)
 
         self.net.load_state_dict(torch.load(model_path,map_location=device))
         self.criterion = nn.BCEWithLogitsLoss()
