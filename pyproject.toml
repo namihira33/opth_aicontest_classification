@@ -14,6 +14,7 @@ tqdm = "^4.61.2"
 ipykernel = "^6.0.1"
 skorch = "^0.10.0"
 pandas = "^1.3.3"
+seaborn = "^0.11.2"
 
 [tool.poetry.dev-dependencies]
 

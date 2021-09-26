@@ -1,12 +1,13 @@
 import os
+import sys
 import time
 from datetime import datetime
 import random
 
 from tqdm import tqdm
 import numpy as np
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import *
+from sklearn.linear_model import LinearRegression
 
 import config
 import torch
@@ -17,6 +18,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader 
 from network import Vgg16,Resnet18
 from Dataset import load_dataloader
+
+import matplotlib.pyplot as plt
 
 c = {
     'model_name': 'Resnet18',
@@ -32,11 +35,30 @@ def sigmoid(x):
 class Evaluater():
     def __init__(self,c):
         self.dataloaders = {}
-        self.search = c
         self.c = c
         now = '{:%y%m%d-%H:%M}'.format(datetime.now())
-        model_path = os.path.join(config.MODEL_DIR_PATH,
-                                'model.pth')
+        model_path = ''
+        args = len(sys.argv)
+        with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv')) as f:
+             lines = [s.strip() for s in f.readlines()]
+        if args < 2 :
+             target_data = lines[-1].split(',')
+        else:
+             if int(sys.argv[1])<=1:
+                 print('Use the first data')
+                 target_data = lines[-1].split(',')
+             else:
+                 try:
+                     target_data = lines[int(sys.argv[1])].split(',')
+                 except IndexError:
+                     print('It does not exit. Use the first data')
+                     target_data = lines[-1].split(',')
+
+        self.n_ex = '{:0=2}'.format(int(target_data[1]))
+        self.c['model_name'] = target_data[2]
+        self.c['n_epoch'] = '{:0=3}'.format(int(target_data[3]))
+        temp = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep.pth'
+        model_path = os.path.join(config.MODEL_DIR_PATH,temp)
         if self.c['model_name'] == 'Vgg16':
                 self.net = Vgg16().to(device)
         elif self.c['model_name'] == 'Resnet18':
@@ -89,11 +111,28 @@ class Evaluater():
             accuracy = right / len(test_dataset)
             mae = mean_absolute_error(preds,labels)
             mse = mean_squared_error(preds,labels)
+            r_score = r2_score(preds,labels)
             print('accuracy :',accuracy)
             print('MAE :',mae)
             print('AE : ',mae*len(preds))
             print('MSE',mse)
             print('SE',mse*len(preds))
+
+            lr = LinearRegression()
+            lr.fit(preds,labels)
+            plt.scatter(preds,labels)
+            plt.plot(preds,lr.predict(preds),color='red')
+            fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_regression.png'
+            print(fig_path)
+            print(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
+            plt.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
+
+
+            fig,ax = plt.subplots()
+            ax.bar(['Acc','Mae','R-score'],[accuracy,mae,r_score],width=0.4,tick_label=['Accuracy','Mae','R-Score'],align='center')
+            ax.grid(True)
+            fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_graph.png'
+            fig.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
 
 
 

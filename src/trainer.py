@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from datetime import datetime
 import random
@@ -21,7 +22,7 @@ from sklearn.model_selection import KFold
 
 from utils  import *
 import config
-from network import Vgg16,Resnet18
+from network import *
 from Dataset import load_dataloader
 
 import csv
@@ -55,7 +56,7 @@ class Trainer():
     def run(self):
         #実行時間計測とmae代入準備
         start = time.time()
-        max_mae = -1000.0
+        min_mae = 100000.0
         n_iter = 1
 
         #Initialization -> Score
@@ -68,7 +69,7 @@ class Trainer():
         #CSVファイルヘッダー記述
         with open(self.log_path + "/log.csv",'a') as f:
             writer = csv.writer(f)
-            writer.writerow(['model_name','lr','seed','epoch','phase','total_loss','auc'])
+            writer.writerow(['model_name','lr','seed','epoch','phase','total_loss','mae'])
 
         for c,param in iterate(self.search):
             print('Parameter :',c)
@@ -76,10 +77,34 @@ class Trainer():
             random.seed(self.c['seed'])
             torch.manual_seed(self.c['seed'])
 
-            if self.c['model_name'] == 'Vgg16':
-                self.net = Vgg16().to(device)
-            elif self.c['model_name'] == 'Resnet18':
-                self.net = Resnet18().to(device)
+            mn = self.c['model_name']
+
+            if mn == 'Vgg16':
+                self.net = Vgg16()
+            elif mn == 'Vgg16_bn':
+                self.net = Vgg16_bn()
+            elif mn == 'Vgg19':
+                self.net = Vgg19()
+            elif mn == 'Vgg19_bn':
+                self.net = Vgg19_bn()
+            elif mn == 'Resnet18':
+                self.net = Resnet18()
+            elif mn == 'Resnet34':
+                self.net = Resnet34()
+            elif mn == 'Resnet50':
+                self.net = Resnet50()
+            elif mn == 'Squeezenet':
+                self.net = Squeezenet()
+            elif mn == 'Densenet':
+                self.net = Densenet()
+            elif mn == 'Inception':
+                self.net = Inception()
+            elif mn == 'Mobilenet_large':
+                self.net = Mobilenet_large()
+            elif mn == 'Mobilenet_small':
+                self.net = Mobilenet_small()
+            
+            self.net = self.net.to(device)
             self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
             self.criterion = nn.MSELoss()
             self.net = nn.DataParallel(self.net)
@@ -110,18 +135,18 @@ class Trainer():
 
                 for epoch in range(1, self.c['n_epoch']+1):
 
-                    learningmae,learningloss,learningmse,learningr_score \
+                    learningmae,learningloss,learningr_score,learningmse \
                         = self.execute_epoch(epoch, 'learning')
 
-                    validmae,validloss,validmse,validr_score \
+                    validmae,validloss,validr_score,validmse\
                         = self.execute_epoch(epoch, 'valid')
 
                     mae_sum = validmae
-                    if max_mae < mae_sum:
-                        max_mae = mae_sum
+                    if min_mae < mae_sum:
+                        min_mae = mae_sum
                         self.bestparam = self.c
                         self.bestparam['epoch'] = epoch_n
-                        self.bestparam['mae'] = mae_sum
+                        self.bestparam['mae'] = min_mae
 
                     epoch_n += 1
                     if epoch == self.c['n_epoch']:
@@ -155,7 +180,7 @@ class Trainer():
                     #print(n_iter)
                     #print(self.c['n_epoch'])
                     #print(self.c['seed'])
-                    #print('{:.2f}'.format(self.auc[phase]),'{:.2f}'.format(self.loss[phase]),'{:.2f}'.format(self.mse[phase]),'{:.2f}'.format(self.r_score)[phase])
+                    #print('{:.2f}'.format(self.mae[phase]),'{:.2f}'.format(self.loss[phase]),'{:.2f}'.format(self.mse[phase]),'{:.2f}'.format(self.r_score)[phase])
                     #initialization -> Score
                     self.mae[phase] = 0
                     self.loss[phase] = 0
@@ -167,37 +192,56 @@ class Trainer():
             n_iter += 1
 
         #パラメータiter後の処理。
-        def plot_history(history,num,xinfo,yinfo):
-            plt.plot(history['learning'])
-            plt.plot(history['valid'])
-            plt.xlabel(xinfo)
-            plt.ylabel(yinfo)
-            plt.yscale('log')
-            plt.legend(['learning','valid'],loc='upper right')
-            save_process_path = os.path.join(config.LOG_DIR_PATH,
-                                str(self.now))
-            plt.savefig(save_process_path + '/history' + str(num) + '.png')
-            plt.figure()
+        #def plot_history(history,num,xinfo,yinfo):
+        #    plt.plot(history['learning'])
+        #    plt.plot(history['valid'])
+        #    plt.xlabel(xinfo)
+        #    plt.ylabel(yinfo)
+        #    plt.yscale('log')
+        #    plt.legend(['learning','valid'],loc='upper right')
+        #    save_process_path = os.path.join(config.LOG_DIR_PATH,
+        #                        str(self.now))
+        #    plt.savefig(save_process_path + '/history' + str(num) + '.png')
+        #    plt.figure()
 
         #plot_history(losses,1,'epoch','loss')
         #plot_history(aucs,2,'epoch','auc')
 
             
-        print(self.bestparam)
-        result_best = [self.bestparam['model_name'],self.bestparam['lr'],self.bestparam['seed'],self.bestparam['n_epoch'],self.bestparam['auc']]
+        #print(self.bestparam)
+        #result_best = [self.bestparam['model_name'],self.bestparam['lr'],self.bestparam['seed'],self.bestparam['n_epoch'],self.bestparam['mae']]
 
-        with open(self.log_path + "/log.csv",'a') as f:
-            writer = csv.writer(f)
-            writer.writerow(['-'*20 + 'bestparameter' + '-'*20])
-            writer.writerow(['model_name','lr','seed','n_epoch','mae'])
-            writer.writerow(result_best)
+        #with open(self.log_path + "/log.csv",'a') as f:
+        #    writer = csv.writer(f)
+        #    writer.writerow(['-'*20 + 'bestparameter' + '-'*20])
+        #    writer.writerow(['model_name','lr','seed','n_epoch','mae'])
+        #    writer.writerow(result_best)
 
         elapsed_time = time.time() - start
         print(f"実行時間 : {elapsed_time:.01f}")
         #訓練後、モデルをセーブする。
-        model_save_path = os.path.join(config.MODEL_DIR_PATH,'model.pth')
-        torch.save(self.net.module.state_dict(),model_save_path)
+        #(実行回数)_(モデル名)_(学習epoch).pth で保存。
+        try : 
+             model_name = self.search['model_name'][0]
+             n_ep = self.search['n_epoch'][-1]
+             n_ex = 0
+             with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv'),'r') as f:
+                 n_ex = len(f.readlines())
 
+             with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv'),'a') as f:
+                 writer = csv.writer(f)
+                 writer.writerow([self.now,n_ex,model_name,n_ep])
+
+             save_path = '{:0=2}'.format(n_ex)+ '_' + model_name + '_' + '{:0=3}'.format(n_ep)+'ep.pth'
+             model_save_path = os.path.join(config.MODEL_DIR_PATH,save_path)
+             torch.save(self.net.module.state_dict(),model_save_path)
+        except FileNotFoundError:
+            with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv'),'w') as f:
+                 writer = csv.writer(f)
+                 writer.writerow(['Time','n_ex','Model_name','n_ep'])
+
+
+        #JSON形式でTensorboardに保存した値を残しておく。
         self.tb_writer.export_scalars_to_json('./log/all_scalars.json')
         self.tb_writer.close()
 
@@ -236,7 +280,7 @@ class Trainer():
         mse = mean_squared_error(labels,preds)
 
         print(
-            f'epoch: {epoch} phase: {phase} loss: {total_loss:.3f} mae: {mae:.3f}')
+            f'epoch: {epoch} phase: {phase} loss: {total_loss:.3f} mae: {mae:.3f} mse: {mse:.3f} r_score{r_score:.3f}')
 
         
         result_list = [self.c['model_name'],self.c['lr'],self.c['seed'],epoch,phase,total_loss,mae]
