@@ -147,6 +147,7 @@ cython_debug/
 
 #log file
 log/
+*.png
 
 #model
 model/
@@ -159,5 +160,7 @@ run/
 
 #tensorboard
 runs/
+
+#image
 
 # End of https://www.toptal.com/developers/gitignore/api/python

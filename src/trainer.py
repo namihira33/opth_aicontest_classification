@@ -37,6 +37,7 @@ device = torch.device('cuda:0')
 class Trainer():
     def __init__(self, c):
         self.dataloaders = {}
+        self.prms = []
         self.search = c
         self.n_seeds = len(c['seed'])
         self.n_splits = 5        
@@ -81,11 +82,11 @@ class Trainer():
 
             if mn == 'Vgg16':
                 self.net = Vgg16()
-            elif mn == 'Vgg16_bn':
+            elif mn == 'Vgg16-bn':
                 self.net = Vgg16_bn()
             elif mn == 'Vgg19':
                 self.net = Vgg19()
-            elif mn == 'Vgg19_bn':
+            elif mn == 'Vgg19-bn':
                 self.net = Vgg19_bn()
             elif mn == 'Resnet18':
                 self.net = Resnet18()
@@ -99,14 +100,15 @@ class Trainer():
                 self.net = Densenet()
             elif mn == 'Inception':
                 self.net = Inception()
-            elif mn == 'Mobilenet_large':
+            elif mn == 'Mobilenet-large':
                 self.net = Mobilenet_large()
-            elif mn == 'Mobilenet_small':
+            elif mn == 'Mobilenet-small':
                 self.net = Mobilenet_small()
             
             self.net = self.net.to(device)
             self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
-            self.criterion = nn.MSELoss()
+            #self.criterion = nn.BCELoss()
+            self.criterion = nn.KLDivLoss(reduction='sum')
             self.net = nn.DataParallel(self.net)
 
             #成績の初期化
@@ -122,8 +124,8 @@ class Trainer():
             for learning_index,valid_index in kf.split(self.dataset['train']):
                 #データセットが切り替わるたびに、ネットワークの重み,バイアスを初期化
                 #utils.py -> init_weights()
-                self.net.apply(init_weights)
-                self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
+                #self.net.apply(init_weights)
+                #self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
                     
                 learning_dataset = Subset(self.dataset['train'],learning_index)
                 self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],
@@ -141,12 +143,8 @@ class Trainer():
                     validmae,validloss,validr_score,validmse\
                         = self.execute_epoch(epoch, 'valid')
 
-                    mae_sum = validmae
-                    if min_mae < mae_sum:
-                        min_mae = mae_sum
-                        self.bestparam = self.c
-                        self.bestparam['epoch'] = epoch_n
-                        self.bestparam['mae'] = min_mae
+                    temp = validmae,epoch_n,self.c
+                    self.prms.append(temp)
 
                     epoch_n += 1
                     if epoch == self.c['n_epoch']:
@@ -211,10 +209,12 @@ class Trainer():
         #print(self.bestparam)
         #result_best = [self.bestparam['model_name'],self.bestparam['lr'],self.bestparam['seed'],self.bestparam['n_epoch'],self.bestparam['mae']]
 
-        #with open(self.log_path + "/log.csv",'a') as f:
-        #    writer = csv.writer(f)
-        #    writer.writerow(['-'*20 + 'bestparameter' + '-'*20])
-        #    writer.writerow(['model_name','lr','seed','n_epoch','mae'])
+        best_prms = sorted(self.prms,key=lambda x:x[0])
+        with open(self.log_path + "/log.csv",'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(['-'*20 + 'bestparameter' + '-'*20])
+            writer.writerow(['model_name','lr','seed','n_epoch','mae'])
+            writer.writerow(best_prms[0:10])
         #    writer.writerow(result_best)
 
         elapsed_time = time.time() - start
@@ -222,7 +222,7 @@ class Trainer():
         #訓練後、モデルをセーブする。
         #(実行回数)_(モデル名)_(学習epoch).pth で保存。
         try : 
-             model_name = self.search['model_name'][0]
+             model_name = self.search['model_name']
              n_ep = self.search['n_epoch'][-1]
              n_ex = 0
              with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv'),'r') as f:
@@ -231,7 +231,6 @@ class Trainer():
              with open(os.path.join(config.LOG_DIR_PATH,'experiment.csv'),'a') as f:
                  writer = csv.writer(f)
                  writer.writerow([self.now,n_ex,model_name,n_ep])
-
              save_path = '{:0=2}'.format(n_ex)+ '_' + model_name + '_' + '{:0=3}'.format(n_ep)+'ep.pth'
              model_save_path = os.path.join(config.MODEL_DIR_PATH,save_path)
              torch.save(self.net.module.state_dict(),model_save_path)
@@ -261,7 +260,11 @@ class Trainer():
 
             with torch.set_grad_enabled(phase == 'learning'):
                 outputs_ = self.net(inputs_)
-                loss = self.criterion(outputs_, labels_)
+                #MSELoss,その他用コード
+                #outputs_ = torch.max(outputs_,1).indices
+                #labels_ = torch.max(outputs_,1).indices
+                delta = 1.0e-7
+                loss = self.criterion((outputs_+delta).log(), labels_)
                 total_loss += loss.item()
 
                 if phase == 'learning':
@@ -274,8 +277,10 @@ class Trainer():
 
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
-        mae = mean_absolute_error(labels, preds)
         total_loss /= len(preds)
+        preds = np.argmax(preds,1)
+        labels = np.argmax(labels,1)
+        mae = mean_absolute_error(labels, preds)
         r_score = r2_score(labels,preds)
         mse = mean_squared_error(labels,preds)
 

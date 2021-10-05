@@ -5,7 +5,7 @@ import config
 from PIL import Image
 import os
 import numpy as np
-from utils import isint
+from utils import *
 
 
 class NuclearCataractDatasetBase(Dataset):
@@ -25,7 +25,7 @@ class NuclearCataractDatasetBase(Dataset):
                     labels.append(label[0])
 
 
-
+        self.mode = 'train' if image_list_file == config.train_info_list else 'test'
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
         self.transform = transform
@@ -34,13 +34,20 @@ class NuclearCataractDatasetBase(Dataset):
                             'Moderateness',
                             'Severe'] '''
 
+    #trainの時は画像とラベル、testのときはそれに加えて画像パスも返すようにできない？
     def __getitem__(self, index):
         image_name = self.image_names[index]
         image = Image.open(image_name).convert('RGB')
         label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
-        return image,torch.Tensor([label])
+        label = one_hot_encoding(label)
+        #label = normal_distribution(label)
+        return (image,torch.Tensor(label)) if (self.mode == 'train') else (image,torch.Tensor(label),image_name)
+        #if self.mode == 'train':
+        #    return image,torch.Tensor(label)
+        #else:
+        #    return image,torch.Tensor(label),image_name
 
     def __len__(self):
         return len(self.image_names)
@@ -63,6 +70,12 @@ class NuclearCataractDatasetBinary(NuclearCataractDatasetBase):
 
 class NuclearCataractDataset(NuclearCataractDatasetBase):
     def get_label(self, label_base):
+        if label_base < 22:
+            label_base = 0
+        elif label_base > 84:
+            label_base = 64
+        else:
+            label_base -= 21
         return [label_base]
 
 def load_dataloader(batch_size):
@@ -71,11 +84,13 @@ def load_dataloader(batch_size):
                             transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
                             transforms.Normalize([0.485,0.456,0.406],
-                                                 [0.229,0.224,0.225])])
+                                                 [0.229,0.224,0.225])
+                            ])
     test_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
                             transforms.CenterCrop(config.image_size),
                             transforms.ToTensor(),
+                            #])#,
                             transforms.Normalize([0.485,0.456,0.406],
                                                  [0.229,0.224,0.225])])
     dataset = {}

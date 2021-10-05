@@ -50,3 +50,18 @@ def init_weights(m):
         nn.init.constant_(m.weight,1)
         nn.init.constant_(m.bias,0)
 
+def one_hot_encoding(n):
+    if isint(n):
+        one_hot = [0]*config.n_classification
+        one_hot[n] = 1
+        return one_hot
+    else:
+        print('Please use an integer of n.')
+
+def calc_normal_distribution(x, mu, sigma=1):
+    return 1 / (sigma * math.sqrt(2 * math.pi)) * math.exp(-(x - mu)**2 / (2 * (sigma**2)))
+
+#nを中心とした正規分布を返す。
+def normal_distribution(n,sigma=1):
+    nd = [calc_normal_distribution(x,n) for x in range(65)]
+    return nd
