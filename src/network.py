@@ -135,3 +135,33 @@ class Mobilenet_small(nn.Module):
     def forward(self,x):
         m = nn.Softmax(dim=1)
         return m(self.net(x))
+
+def make_model(mn):
+    mn = self.c['model_name']
+
+    if mn == 'Vgg16':
+         self.net = Vgg16()
+    elif mn == 'Vgg16-bn':
+        self.net = Vgg16_bn()
+    elif mn == 'Vgg19':
+        self.net = Vgg19()
+    elif mn == 'Vgg19-bn':
+        self.net = Vgg19_bn()
+    elif mn == 'Resnet18':
+        self.net = Resnet18()
+    elif mn == 'Resnet34':
+        self.net = Resnet34()
+    elif mn == 'Resnet50':
+        self.net = Resnet50()
+    elif mn == 'Squeezenet':
+        self.net = Squeezenet()
+    elif mn == 'Densenet':
+        self.net = Densenet()
+    elif mn == 'Inception':
+        self.net = Inception()
+    elif mn == 'Mobilenet-large':
+        self.net = Mobilenet_large()
+    elif mn == 'Mobilenet-small':
+        self.net = Mobilenet_small()
+
+    return self.net.to(device)

@@ -67,34 +67,8 @@ class Evaluater():
         temp = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep.pth'
         model_path = os.path.join(config.MODEL_DIR_PATH,temp)
 
-        mn = self.c['model_name']
 
-        if mn == 'Vgg16':
-             self.net = Vgg16()
-        elif mn == 'Vgg16-bn':
-            self.net = Vgg16_bn()
-        elif mn == 'Vgg19':
-            self.net = Vgg19()
-        elif mn == 'Vgg19-bn':
-            self.net = Vgg19_bn()
-        elif mn == 'Resnet18':
-            self.net = Resnet18()
-        elif mn == 'Resnet34':
-            self.net = Resnet34()
-        elif mn == 'Resnet50':
-            self.net = Resnet50()
-        elif mn == 'Squeezenet':
-            self.net = Squeezenet()
-        elif mn == 'Densenet':
-            self.net = Densenet()
-        elif mn == 'Inception':
-            self.net = Inception()
-        elif mn == 'Mobilenet-large':
-            self.net = Mobilenet_large()
-        elif mn == 'Mobilenet-small':
-            self.net = Mobilenet_small()
-
-        self.net = self.net.to(device)
+        self.net = make_model(self.c['model_name'])
         self.net.load_state_dict(torch.load(model_path,map_location=device))
 
         #モデル構造を可視化
@@ -248,8 +222,8 @@ class Evaluater():
             preds = preds.reshape(-1,1)
             lr.fit(preds.reshape(-1,1),labels)
             fig,ax = plt.subplots()
-            plt.scatter(preds,labels)
-            plt.plot(preds,lr.predict(preds),color='red')
+            ax.scatter(preds,labels)
+            ax.plot(preds,lr.predict(preds),color='red')
             fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_regression.png'
             plt.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
 
