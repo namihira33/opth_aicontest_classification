@@ -2,11 +2,11 @@ from trainer import Trainer
 import sys
 import numpy as np
 
-seeds = list(np.random.choice(10000,3))
+seeds = list(np.random.choice(10000,1))
 
 c = {
-    'model_name': 'Resnet18','bs': 128,'n_epoch': 120,
-    'lr': [7e-5,8e-5,9e-5,1e-4,2e-4,3e-4,4e-4,5e-4,6e-4,7e-4,8e-4,9e-4],'seed': seeds
+    'model_name': 'Resnet34','bs': 64,'n_epoch': 81,
+    'lr': [8e-5],'seed': seeds,'p':0.25
 }
 
 args = len(sys.argv)

@@ -24,8 +24,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 from PIL import Image
 
+import pytab as pt
+import seaborn as sns
+
 c = {
-    'model_name': 'Resnet18',
+    'model_name': 'Resnet34',
     'seed': [0], 'bs': 64, 'lr': [1e-4], 'n_epoch': [10]
 }
 
@@ -68,17 +71,16 @@ class Evaluater():
         model_path = os.path.join(config.MODEL_DIR_PATH,temp)
 
 
-        self.net = make_model(self.c['model_name'])
+        self.net = make_model(self.c['model_name']).to(device)
         self.net.load_state_dict(torch.load(model_path,map_location=device))
 
         #モデル構造を可視化
         dummy_input = torch.rand(64,3,224,224)
         with tbx.SummaryWriter() as w:
             w.add_graph(self.net,(dummy_input.to(device)))
-        self.criterion = nn.BCEWithLogitsLoss()
 
     def run(self):
-            self.dataset = load_dataloader(self.c['bs'])
+            self.dataset = load_dataloader(0.25)
             test_dataset = self.dataset['test']
             self.dataloaders['test'] = DataLoader(test_dataset,self.c['bs'],
                     shuffle=True,num_workers=os.cpu_count())
@@ -89,57 +91,57 @@ class Evaluater():
 
 
             #fig,axes = plt.subplots(4,8,figsize=(16,16))
-            fig,axes = plt.subplots(2,4,figsize=(16,8))
-            plt.subplots_adjust(wspace=0.4, hspace=0.6)
+            #fig,axes = plt.subplots(2,4,figsize=(16,8))
+            #plt.subplots_adjust(wspace=0.4, hspace=0.6)
 
-            for inputs_, labels_,paths_ in tqdm(self.dataloaders['test']):
+            for inputs_,labels_,paths_,_ in tqdm(self.dataloaders['test']):
                 inputs_ = inputs_.to(device)
                 labels_ = labels_.to(device)
 
                 torch.set_grad_enabled(False)
                 outputs_ = self.net(inputs_)
-                loss = self.criterion(outputs_, labels_)
+                #loss = self.criterion(outputs_, labels_)
                 #total_loss += loss.item()
 
                 #画像・ラベル・推定値を表示させてみる。
                 #表示させられるのだけど、標準化されているので元の形を保っていない。
                 #これを出す方法。
-                conf = 0.2
+                #conf = 0.2
                 paths_ = np.array(paths_)
-                predicts_percent = outputs_.detach().cpu().numpy()
-                predicts_percent = np.max(predicts_percent,axis=1)
+                #predicts_percent = outputs_.detach().cpu().numpy()
+                #predicts_percent = np.max(predicts_percent,axis=1)
                 predicts = np.argmax(outputs_.detach().cpu().numpy(),axis=1)
                 #predicts = predicts[predicts_percent<conf]
-                answers = np.argmax(labels_.detach().cpu().numpy(),axis=1)
-                temp = abs(predicts-answers)>20
-                predicts = predicts[temp]
-                answers = answers[temp]
+                #answers = np.argmax(labels_.detach().cpu().numpy(),axis=1)
+                #temp = abs(predicts-answers)>20
+                #predicts = predicts[temp]
+                #answers = answers[temp]
                 #answers = answers[predicts_percent<conf]
                 #paths_ = paths_[predicts_percent<conf]
-                paths_ = paths_[temp]
+                #paths_ = paths_[temp]
                 #predicts_percent = predicts_percent[predicts_percent<conf]
-                predicts_percent = predicts_percent[temp]
-                root = config.data_root
+                #predicts_percent = predicts_percent[temp]
+                #root = config.data_root
 
-                for i,(p,pp,pd,an) in enumerate(zip(paths_,predicts_percent,predicts,answers)):
-                    image_name = os.path.join(root,p)
-                    im = Image.open(image_name)
-                    title1 = '予測:' + str(pd+21) + '歳 ' + '答え:' + str(an+21) + '歳'
-                    title2 = '確信度 : ' + '{:.2f}'.format(pp)
-                    axes[(self.cnt%8)//4][self.cnt%4].imshow(im)
-                    axes[(self.cnt%8)//4][self.cnt%4].set_title(title1)
-                    axes[(self.cnt%8)//4][self.cnt%4].title.set_size(18)
-                    axes[(self.cnt%8)//4][self.cnt%4+1].set_ylim(0,1)
-                    axes[(self.cnt%8)//4][self.cnt%4+1].set_xlim(0,1)
-                    axes[(self.cnt%8)//4][self.cnt%4+1].set_aspect('equal', adjustable='box')
-                    axes[(self.cnt%8)//4][self.cnt%4+1].set_title(title2)
-                    axes[(self.cnt%8)//4][self.cnt%4+1].title.set_size(18)
-                    axes[(self.cnt%8)//4][self.cnt%4+1].bar(0.5,pp,width=0.4,align='center',tick_label='confidence')
-                    self.cnt += 2
-                    if not (self.cnt%8):
-                        save_path = './log/images/experiment' + str(self.cnt//8) + '.png'
-                        fig.savefig(save_path)
-                        fig,axes = plt.subplots(2,4,figsize=(16,8))
+                #for i,(p,pp,pd,an) in enumerate(zip(paths_,predicts_percent,predicts,answers)):
+                #    image_name = os.path.join(root,p)
+                #    im = Image.open(image_name)
+                #    title1 = '予測:' + str(pd+21) + '歳 ' + '答え:' + str(an+21) + '歳'
+                #    title2 = '確信度 : ' + '{:.2f}'.format(pp)
+                #    axes[(self.cnt%8)//4][self.cnt%4].imshow(im)
+                #    axes[(self.cnt%8)//4][self.cnt%4].set_title(title1)
+                #    axes[(self.cnt%8)//4][self.cnt%4].title.set_size(18)
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].set_ylim(0,1)
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].set_xlim(0,1)
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].set_aspect('equal', adjustable='box')
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].set_title(title2)
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].title.set_size(18)
+                #    axes[(self.cnt%8)//4][self.cnt%4+1].bar(0.5,pp,width=0.4,align='center',tick_label='confidence')
+                #    self.cnt += 2
+                #    if not (self.cnt%8):
+                #        save_path = './log/images/experiment' + str(self.cnt//8) + '.png'
+                #        fig.savefig(save_path)
+                #        fig,axes = plt.subplots(2,4,figsize=(16,8))
 
 
 
@@ -149,10 +151,10 @@ class Evaluater():
                 #hist = ax.bar(0,np.max(predicts_percent[0]),width=0.4,align='center',tick_label='confidence')
                 #print(np.max(predicts_percent[0]))
                 #plt.plot()
-                #plt.savefig('./log/images/experiment_bar.png')
+                #fig.savefig('./log/images/experiment_bar.png')
 
-                predicts = np.argmax(outputs_.detach().cpu().numpy(),axis=1)
-                answers = np.argmax(labels_.detach().cpu().numpy(),axis=1)
+                #predicts = np.argmax(outputs_.detach().cpu().numpy(),axis=1)
+                #answers = np.argmax(labels_.detach().cpu().numpy(),axis=1)
 
 
 
@@ -170,69 +172,94 @@ class Evaluater():
 
                 preds += [outputs_.detach().cpu().numpy()]
                 labels += [labels_.detach().cpu().numpy()]
-                total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
+                #total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
-            if self.cnt%8:
-                while (self.cnt%8):
-                    axes[(self.cnt%8)//4][self.cnt%4].axis('off')
-                    axes[(self.cnt%8)//4][self.cnt%4+1].axis('off')
-                    self.cnt += 2
+            #if self.cnt%8:
+            #    while (self.cnt%8):
+            #        axes[(self.cnt%8)//4][self.cnt%4].axis('off')
+            #        axes[(self.cnt%8)//4][self.cnt%4+1].axis('off')
+            #        self.cnt += 2
 
-                save_path = './log/images/experiment' + str(self.cnt//8) + '_last.png'
-                fig.savefig(save_path)
+            #    save_path = './log/images/experiment' + str(self.cnt//8) + '_last.png'
+            #    fig.savefig(save_path)
 
             preds = np.concatenate(preds)
             labels = np.concatenate(labels)
-            total_loss /= len(preds)
+            #total_loss /= len(preds)
 
-            worst_id = np.argmax(preds-labels)
-            worst = (preds-labels).max()
+            #worst_id = np.argmax(preds-labels)
+            #worst = (preds-labels).max()
 
-            a = np.max(preds,1)
+            #a = np.max(preds,1)
             #preds = np.argmax(preds[a>0.9],axis=1)
             #labels = np.argmax(labels[a>0.9],axis=1)
-            fig,ax = plt.subplots()
-            p = ax.hist(a)
-            fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_hist.png'
-            fig.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
+            #fig,ax = plt.subplots()
+            #p = ax.hist(a)
+            #fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_hist.png'
+            #fig.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
             
-            preds = np.argmax(preds,1)
+            #preds = np.argmax(preds,1)
+            temp_index = np.arange(config.n_classification)
+            preds = np.sum(preds*temp_index,axis=1)            
             labels = np.argmax(labels,1)
             preds += 21
             labels += 21
 
-            threshold = 1.01
-            right += ((preds-labels) < threshold).sum()
-            notright += len(preds) - ((preds - labels) < threshold).sum()
+            sns.set()
+            sns.set_style('whitegrid')
+            sns.set_palette('Set3')
+            fig,ax = plt.subplots(figsize=(16,8))
+            ax.set_xlabel('Predict Age')
+            ax.set_ylabel('Num of Datas')
+            ax.set_title('Predict Age Histgram')
+            hist = ax.hist(preds,bins=65)
+            fig.savefig('./log/images/pred_Regression_hist.png')
 
-            print(right,len(preds))
+            #threshold = 1.01
+            #right += ((preds-labels) < threshold).sum()
+            #notright += len(preds) - ((preds - labels) < threshold).sum()
 
-            accuracy = right / len(preds)
+            #print(right,len(preds))
+
+            #accuracy = right / len(preds)
             mae = mean_absolute_error(preds,labels)
-            kappa = cohen_kappa_score(preds,labels,weights='quadratic')
             r_score = r2_score(preds,labels)
 
-            print('accuracy :',accuracy)
-            print('MAE :',mae)
-            print('AE : ',mae*len(preds))
-            print('kappa',kappa)
+            #print('accuracy :',accuracy)
+            #print('MAE :',mae)
+            #print('AE : ',mae*len(preds))
 
-
-            lr = LinearRegression()
-            preds = preds.reshape(-1,1)
-            lr.fit(preds.reshape(-1,1),labels)
-            fig,ax = plt.subplots()
-            ax.scatter(preds,labels)
-            ax.plot(preds,lr.predict(preds),color='red')
-            fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_regression.png'
-            plt.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
-
-
-            fig,ax = plt.subplots()
-            ax.bar(['Acc','Mae','R-score','kappa'],[accuracy,mae,r_score,kappa],width=0.4,tick_label=['Accuracy','Mae','R-Score','kappa'],align='center')
-            ax.grid(True)
-            fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_graph.png'
+            #評価結果を図示する。
+            data = {
+            #'Accuracy' : ['{:.2f}'.format(accuracy)],
+            'R2-score' : ['{:.2f}'.format(r_score)],
+            'Age MAE' : ['{:.2f}'.format(mae)]
+            }
+            tb = pt.table(data=data,th_type='dark')
+            fig = tb.figure
+            fig.suptitle('Score')
+            fig.set_figheight(2)
+            fig.set_figwidth(6)
+            fig_path = 'scoretable.png'
             fig.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
+
+
+
+            #lr = LinearRegression()
+            #preds = preds.reshape(-1,1)
+            #lr.fit(preds.reshape(-1,1),labels)
+            #fig,ax = plt.subplots()
+            #ax.scatter(preds,labels)
+            #ax.plot(preds,lr.predict(preds),color='red')
+            #fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_regression.png'
+            #plt.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
+
+
+            #fig,ax = plt.subplots()
+            #ax.bar(['Acc','Mae','R-score'],[accuracy,mae,r_score],width=0.4,tick_label=['Accuracy','Mae','R-Score'],align='center')
+            #ax.grid(True)
+            #fig_path = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep_graph.png'
+            #fig.savefig(os.path.join(config.LOG_DIR_PATH,'images',fig_path))
 
 
 

@@ -1,5 +1,6 @@
 import torch.nn as nn
 import numpy as np
+import pandas as pd
 import math
 import os
 import config
@@ -63,5 +64,30 @@ def calc_normal_distribution(x, mu, sigma=1):
 
 #nを中心とした正規分布を返す。
 def normal_distribution(n,sigma=1):
-    nd = [calc_normal_distribution(x,n) for x in range(65)]
+    nd = [calc_normal_distribution(x,n) for x in range(config.n_classification)]
     return nd
+
+#ビニング処理。年齢をn分割して、labelを該当場所に割り振る。
+#bincenterは割り振られた場所の真ん中の値
+def execute_bining(n,label):
+    base_num = np.arange(65)+21
+    base_num[0] = 15
+    base_num[-1] = 91
+    
+    bin_list,bins = pd.cut(base_num,bins=n,retbins=True,labels=False)
+    
+    n_class = bin_list[label-21] if label>21 else 0
+    bincenter = (bins[n_class]+bins[n_class+1])/2
+
+    
+    return n_class,bincenter
+
+def ret_bins(n):
+    base_num = np.arange(65)+21
+    base_num[0] = 15
+    base_num[-1] = 91
+    
+    _,bins = pd.cut(base_num,bins=n,retbins=True,labels=False)
+
+    return bins
+

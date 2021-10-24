@@ -28,8 +28,7 @@ from Dataset import load_dataloader
 import csv
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-#import pandas as pd
+import pandas as pd
 
 
 torch.backends.cudnn.benchmark = True
@@ -42,12 +41,11 @@ class Trainer():
         self.search = c
         self.n_seeds = len(c['seed'])
         self.n_splits = 5        
-        self.loss,self.mae,self.mse,self.r_score= {},{},{},{}
+
         self.now = '{:%y%m%d-%H:%M}'.format(datetime.now())
         self.log_path = os.path.join(config.LOG_DIR_PATH,
                                 str(self.now))
         os.makedirs(self.log_path, exist_ok=True)
-        self.tb_writer = tbx.SummaryWriter()
 
         with open(self.log_path + "/log.csv",'w') as f:
             writer = csv.writer(f)
@@ -58,69 +56,34 @@ class Trainer():
     def run(self):
         #実行時間計測とmae代入準備
         start = time.time()
-        n_iter = 1
 
-        #Initialization -> Score
-        for phase in ['learning','valid']:
-            self.loss[phase] = 0
-            self.mae[phase] = 0
-            self.r_score[phase] = 0
-            self.mse[phase] = 0
         #ヒートマップ描画用のリスト
         validheat,heat_index = [],[]
 
         #Seed平均を取るためのリスト
         seed_valid = []
 
+        #valid予測値出力用のリスト
+        ensemble_list = []
+        test_preds = []
+
         #CSVファイルヘッダー記述
         with open(self.log_path + "/log.csv",'a') as f:
             writer = csv.writer(f)
             writer.writerow(['model_name','lr','seed','epoch','phase','total_loss','mae'])
 
-        for c,param in iterate(self.search):
+        for n_iter,(c,param) in enumerate(iterate(self.search)):
             print('Parameter :',c)
             self.c = c
             random.seed(self.c['seed'])
             torch.manual_seed(self.c['seed'])
 
             mn = self.c['model_name']
-
-            if mn == 'Vgg16':
-                self.net = Vgg16()
-            elif mn == 'Vgg16-bn':
-                self.net = Vgg16_bn()
-            elif mn == 'Vgg19':
-                self.net = Vgg19()
-            elif mn == 'Vgg19-bn':
-                self.net = Vgg19_bn()
-            elif mn == 'Resnet18':
-                self.net = Resnet18()
-            elif mn == 'Resnet34':
-                self.net = Resnet34()
-            elif mn == 'Resnet50':
-                self.net = Resnet50()
-            elif mn == 'Squeezenet':
-                self.net = Squeezenet()
-            elif mn == 'Densenet':
-                self.net = Densenet()
-            elif mn == 'Inception':
-                self.net = Inception()
-            elif mn == 'Mobilenet-large':
-                self.net = Mobilenet_large()
-            elif mn == 'Mobilenet-small':
-                self.net = Mobilenet_small()
-            
-            self.net = self.net.to(device)
+            self.net = make_model(mn).to(device)
             self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
             #self.criterion = nn.BCELoss()
             self.criterion = nn.KLDivLoss(reduction='sum')
             self.net = nn.DataParallel(self.net)
-
-            #成績の初期化
-            losses,maes = {},{}
-            for phase in ['learning','valid']:
-                losses[phase] = []
-                maes[phase] = []
 
             memory = {}
             memory2 = {}
@@ -132,60 +95,79 @@ class Trainer():
                     memory[phase] = [[] for x in range(self.n_splits)]
                     memory2[phase] = [[] for x in range(self.n_splits)]
 
-            self.dataset = load_dataloader(self.c['bs'])
+            self.dataset = load_dataloader(self.c['p'])
             kf = KFold(n_splits=5,shuffle=True,random_state=self.c['seed'])
-
-            epoch_n = 1
 
             for a,(learning_index,valid_index) in enumerate(kf.split(self.dataset['train'])):
                 #データセットが切り替わるたびに、ネットワークの重み,バイアスを初期化
-                #utils.py -> init_weights()
                 self.net.apply(init_weights)
                 self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
                     
                 learning_dataset = Subset(self.dataset['train'],learning_index)
                 self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],
                 shuffle=True,num_workers=os.cpu_count())
+                
                 valid_dataset = Subset(self.dataset['train'],valid_index)
                 self.dataloaders['valid'] = DataLoader(valid_dataset,self.c['bs'],
                 shuffle=True,num_workers=os.cpu_count())
 
-
+                self.tb_writer = tbx.SummaryWriter()
                 for epoch in range(1, self.c['n_epoch']+1):
 
-                    learningmae,learningloss,learningr_score,learningmse \
+                    learningmae,learningloss,learningr_score \
                         = self.execute_epoch(epoch, 'learning')
+                    self.tb_writer.add_scalar('Loss/{}'.format('learning'),learningloss,epoch)
+                    self.tb_writer.add_scalar('Mae/{}'.format('learning'),learningmae,epoch)
 
-                    validmae,validloss,validr_score,validmse\
-                        = self.execute_epoch(epoch, 'valid')
                     
                     if not self.c['evaluate']:
-                        #validmae,validloss,validr_score\
-                        #    = self.execute_epoch(epoch, 'valid')
-                        #self.tb_writer.add_scalar('Loss/{}'.format('valid'),validloss,epoch)
-                        #self.tb_writer.add_scalar('Mae/{}'.format('valid'),validmae,epoch)
-                        #self.tb_writer.add_scalar('R2_score/{}'.format('valid'),validr_score,epoch)
+                        validmae,validloss,validr_score,valid_preds,valid_labels,valid_indexes\
+                            = self.execute_epoch(epoch, 'valid')
+                        self.tb_writer.add_scalar('Loss/{}'.format('valid'),validloss,epoch)
+                        self.tb_writer.add_scalar('Mae/{}'.format('valid'),validmae,epoch)
+
                         memory['valid'][a].append(validmae)
                         memory2['valid'][a].append(validloss)
 
-                        temp = validmae,epoch_n,self.c
+                        temp = validmae,epoch,self.c
                         self.prms.append(temp)
 
-                    epoch_n += 1
                     if epoch == self.c['n_epoch']:
-                        self.mae['learning'] += learningmae
-                        self.mae['valid'] += validmae
-                        self.loss['learning'] += learningloss
-                        self.loss['valid'] += validloss
-                        self.mse['learning'] += learningmse
-                        self.mse['valid'] += validmse
-                        self.r_score['learning'] += learningr_score
-                        self.r_score['valid'] += validr_score
-                        
+                        for a,b,c in zip(valid_indexes,valid_preds,valid_labels):
+                            ensemble_list.append((a,b+21,c+21))              
                 
-                #n_epoch後の処理
-                save_process_path = os.path.join(config.LOG_DIR_PATH,
-                                str(self.now))
+                #n_epoch後の処理                
+                self.tb_writer.close()
+                #各分割での学習モデルを使って、テストデータに対する予測を出す。
+                self.dataset = load_dataloader(self.c['p'])
+                test_dataset = self.dataset['test']
+                self.dataloaders['test'] = DataLoader(test_dataset,self.c['bs'],
+                    shuffle=False,num_workers=os.cpu_count())
+
+                preds, labels,paths,test_indexes,total_loss,accuracy= [],[],[],[],0,0
+                self.net.eval()
+
+                for inputs_,labels_,paths_,indexes_ in tqdm(self.dataloaders['test']):
+                    inputs_ = inputs_.to(device)
+                    labels_ = labels_.to(device)
+
+                    torch.set_grad_enabled(False)
+                    outputs_ = self.net(inputs_)
+                    loss = self.criterion(outputs_, labels_)
+
+                    preds += [outputs_.detach().cpu().numpy()]
+                    labels += [labels_.detach().cpu().numpy()]
+                    test_indexes += [indexes_.detach().cpu().numpy()]
+                    paths  += paths_
+
+                preds = np.concatenate(preds)
+                preds = np.argmax(preds,axis=1)
+                labels = np.concatenate(labels)
+                test_indexes = np.concatenate(test_indexes)
+                for t_id,pd in zip(test_indexes,preds):
+                    test_preds.append((t_id,pd+21))
+
+
                 if not self.c['cv']:
                     break
 
@@ -197,6 +179,7 @@ class Trainer():
                 memory2['valid'] = list(np.mean(memory2['valid'],axis=0))
                 seed_valid.append(memory['valid'])
 
+            #平均をTensorboardに記録。
             if self.c['cv']:
                 self.tb_writer = tbx.SummaryWriter()
                 for phase in ['learning','valid']:
@@ -209,38 +192,18 @@ class Trainer():
                         with open(self.log_path + "/log.csv",'a') as f:
                             writer = csv.writer(f)
                             writer.writerow([self.c,phase,'ValidLoss',memory2[phase][b]])
-
-                    
-                        
                 #JSON形式でTensorboardに保存した値を残しておく。
                 self.tb_writer.export_scalars_to_json('./log/all_scalars.json')
                 self.tb_writer.close()
 
             #乱数シードiterごとに、平均を取り、これを記録。
-            if not (n_iter%self.n_seeds):
+            if not ((n_iter+1)%self.n_seeds):
                 temp = self.n_seeds * self.n_splits
-                for phase in ['learning','valid']:
-                    self.mae[phase]  /= temp
-                    self.loss[phase] /= temp
-                    self.mse[phase] /= temp
-                    self.r_score[phase] /= temp
-                    #self.tb_writer.add_scalar('Loss/{}'.format(phase),self.loss[phase],self.c['n_epoch'])
-                    #self.tb_writer.add_scalar('Mae/{}'.format(phase),self.mae[phase],self.c['n_epoch'])
-                    #self.tb_writer.add_scalar('R2_score/{}'.format(phase),self.r_score[phase],self.c['n_epoch'])
-                    #self.tb_writer.add_scalar('Mse/{}'.format(phase),self.mse[phase],self.c['n_epoch'])
-                    #initialization -> Score
-                    self.mae[phase] = 0
-                    self.loss[phase] = 0
-                    self.mse[phase] = 0
-                    self.r_score[phase] = 0
                 print(memory['valid'])
                 seed_valid = np.mean(seed_valid,axis=0)
                 validheat.append(memory['valid'])
                 heat_index.append(self.c['lr'])
                 seed_valid = []
-
-                
-            n_iter += 1
 
         #パラメータiter後の処理。
 
@@ -250,11 +213,16 @@ class Trainer():
             writer.writerow(['-'*20 + 'bestparameter' + '-'*20])
             writer.writerow(['model_name','lr','seed','n_epoch','mae'])
             writer.writerow(best_prms[0:10])
+            ensemble_list = sorted(ensemble_list,key=lambda x:x[0])
+            test_preds = sorted(test_preds,key=lambda x:x[0])
+
+#       print(ensemble_list[0:10])
+#       print(np.mean(test_preds,axis=0)[:10])
 
         #学習率・10epoch経過後のヒートマップの描画
             validheat = [l[::5] for l in validheat[:]]
             print(validheat)
-            fig,ax = plt.subplots(figsize=(12,8))
+            fig,ax = plt.subplots(figsize=(16,8))
             xtick = list(map(lambda x:5*x-4,list(range(1,len(validheat[0])+1))))
             xtick = [str(x) + 'ep' for x in xtick]
             sns.heatmap(validheat,annot=True,cmap='Set3',fmt='.2f',
@@ -287,23 +255,47 @@ class Trainer():
                  writer = csv.writer(f)
                  writer.writerow(['Time','n_ex','Model_name','n_ep'])
 
+        #モデルの情報に基づいて、今回のValidでの予測値・テストデータに対する予測値を保存する。
+        #test_predsをn回ごとに平均を取る。
+        list_t_pd,s = [],0
+        for i,t_pd in enumerate(test_preds):
+            s += t_pd[1]
+            if (i%5==4):
+                s/=5
+                list_t_pd.append(s)
+                s = 0
+        print(list_t_pd)
+        with open(os.path.join(config.LOG_DIR_PATH,'second_model.csv'),'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['-----Model Predict Value------'])
+            for p,pd,l in ensemble_list:
+                writer.writerow([pd,l])
 
-        #JSON形式でTensorboardに保存した値を残しておく。
-        self.tb_writer.export_scalars_to_json('./log/all_scalars.json')
-        self.tb_writer.close()
+            for t_pd in list_t_pd:
+                writer.writerow([t_pd])
 
     #1epochごとの処理
     def execute_epoch(self, epoch, phase):
-        preds, labels,total_loss= [], [],0
+        preds, labels,indexes,ages,total_loss= [],[],[],[],0
         if phase == 'learning':
             self.net.train()
         else:
             self.net.eval()
 
-        for inputs_, labels_ in tqdm(self.dataloaders[phase]):
+        for inputs_, labels_, indexes_ in tqdm(self.dataloaders[phase]):
             inputs_ = inputs_.to(device)
             labels_ = labels_.to(device)
             self.optimizer.zero_grad()
+
+            #preds_ = np.argmax(preds_,axis=1)
+            #for i in range(len(preds_)):
+            #    pred,_ = execute_bining(15,preds_[i][0]+21)
+            #    preds_[i] = pred
+
+            #labels_ = np.argmax(labels_,axis=1)
+            #for i in range(len(labels_)):
+            #    label,_ = execute_bining(15,labels_[i][0]+21)
+            #    ages.append(label)
 
 
             with torch.set_grad_enabled(phase == 'learning'):
@@ -319,24 +311,34 @@ class Trainer():
 
             preds += [outputs_.detach().cpu().numpy()]
             labels += [labels_.detach().cpu().numpy()]
+            indexes += [indexes_.detach().cpu().numpy()]
             total_loss += float(loss.detach().cpu().numpy()) * len(inputs_)
 
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
+        indexes = np.concatenate(indexes)
         total_loss /= len(preds)
         
         #ハードな答えの出し方
-        #preds = np.argmax(preds,1)
+        preds = np.argmax(preds,1)
+        #for i in range(len(preds)):
+        #    bins = ret_bins(config.n_classification)
+        #    bincenter = (bins[preds[i]+1] + bins[preds[i]])/2
+        #    preds[i] = round(bincenter,2)
+        
         #ソフトな答えの出し方 加重平均
-        temp_index = np.arange(65)
-        preds = np.sum(preds*temp_index,axis=1)
+        #temp_index = np.arange(config.n_classification)
+        #preds = np.sum(preds*temp_index,axis=1)
+
+        #エンコーディングをもとに戻す。
         labels = np.argmax(labels,1)
-        mae = mean_absolute_error(labels, preds)
+
+
+        mae = mean_absolute_error(ages, preds)
         r_score = r2_score(labels,preds)
-        mse = mean_squared_error(labels,preds)
 
         print(
-            f'epoch: {epoch} phase: {phase} loss: {total_loss:.3f} mae: {mae:.3f} mse: {mse:.3f} r_score{r_score:.3f}')
+            f'epoch: {epoch} phase: {phase} loss: {total_loss:.3f} mae: {mae:.3f} r_score{r_score:.3f}')
 
         
         result_list = [self.c['model_name'],self.c['lr'],self.c['seed'],epoch,phase,total_loss,mae]
@@ -344,9 +346,9 @@ class Trainer():
         with open(self.log_path + "/log.csv",'a') as f:
             writer = csv.writer(f)
             writer.writerow(result_list)
+        
+        return (mae,total_loss,r_score) if (phase=='learning') else (mae,total_loss,r_score,preds,labels,indexes)
 
-
-        return mae,total_loss,r_score,mse
 
 def tbx_write(tbw,epoch,phase,mae):
     tbw.add_scalar('Mean_Mae/{}'.format(phase),mae,epoch)
@@ -354,5 +356,3 @@ def tbx_write(tbw,epoch,phase,mae):
 def tbx_write(tbw,epoch,phase,mae,loss):
     tbw.add_scalar('Mean_Loss/{}'.format(phase),loss,epoch)
     tbw.add_scalar('Mean_Mae/{}'.format(phase),mae,epoch)
-    #self.tb_writer.add_scalar('Recall/{}'.format(phase),self.recall[phase],self.c['n_epoch'])
-    #self.tb_writer.add_scalar('Precision/{}'.format(phase),self.precision[phase],self.c['n_epoch'])

@@ -2,6 +2,7 @@ import torchvision.models as models
 import torch.nn as nn
 import torch
 import config
+from efficientnet_pytorch import EfficientNet
 
 
 class Vgg16(nn.Module):
@@ -67,8 +68,10 @@ class Resnet34(nn.Module):
         self.net.fc = nn.Linear(in_features=512,out_features=config.n_classification)
 
     def forward(self,x):
-         m = nn.Softmax(dim=1)
-         return m(self.net(x))
+        #温度付きソフトマックス
+        T = 2
+        m = nn.Softmax(dim=1)
+        return m(self.net(x)/T)
 
 class Resnet50(nn.Module):
     def __init__(self):
@@ -114,6 +117,16 @@ class Inception(nn.Module):
         m = nn.Softmax(dim=1)
         return m(self.net(x))
 
+class Efficientnet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = EfficientNet.from_name('efficientnet-b7')
+        self.net._fc = nn.Linear(2560,config.n_classification)
+
+    def forward(self,x):
+        m = nn.Softmax(dim=1)
+        return m(self.net(x))
+
 class Mobilenet_large(nn.Module):
     def __init__(self):
         super().__init__()
@@ -137,31 +150,31 @@ class Mobilenet_small(nn.Module):
         return m(self.net(x))
 
 def make_model(mn):
-    mn = self.c['model_name']
-
     if mn == 'Vgg16':
-         self.net = Vgg16()
+         net = Vgg16()
     elif mn == 'Vgg16-bn':
-        self.net = Vgg16_bn()
+        net = Vgg16_bn()
     elif mn == 'Vgg19':
-        self.net = Vgg19()
+        net = Vgg19()
     elif mn == 'Vgg19-bn':
-        self.net = Vgg19_bn()
+        net = Vgg19_bn()
     elif mn == 'Resnet18':
-        self.net = Resnet18()
+        net = Resnet18()
     elif mn == 'Resnet34':
-        self.net = Resnet34()
+        net = Resnet34()
     elif mn == 'Resnet50':
-        self.net = Resnet50()
+        net = Resnet50()
     elif mn == 'Squeezenet':
-        self.net = Squeezenet()
+        net = Squeezenet()
     elif mn == 'Densenet':
-        self.net = Densenet()
+        net = Densenet()
     elif mn == 'Inception':
-        self.net = Inception()
+        net = Inception()
+    elif mn == 'EfficientNet':
+        net = Efficientnet()
     elif mn == 'Mobilenet-large':
-        self.net = Mobilenet_large()
+        net = Mobilenet_large()
     elif mn == 'Mobilenet-small':
-        self.net = Mobilenet_small()
+        net = Mobilenet_small()
 
-    return self.net.to(device)
+    return net
