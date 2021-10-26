@@ -34,7 +34,7 @@ class NuclearCataractDatasetBase(Dataset):
 
 
 
-        self.mode = 'train' if image_list_file == config.train_info_list else 'test'
+        self.mode = 'train' if ((image_list_file == config.train_info_list) or (image_list_file == config.contest_train_list))  else 'test'
         self.image_names = np.array(image_names)
         self.labels = np.array(labels)
         self.indexes = np.array(indexes)
@@ -103,6 +103,14 @@ def load_dataloader(p):
                             transforms.Normalize([0.485,0.456,0.406],
                                                  [0.229,0.224,0.225])
                             ])
+
+    valid_transform = \
+        transforms.Compose([transforms.Resize(config.image_size),
+                            transforms.CenterCrop(config.image_size),
+                            transforms.ToTensor(),
+                            transforms.Normalize([0.485,0.456,0.406],
+                                                 [0.229,0.224,0.225])])
+
     test_transform = \
         transforms.Compose([transforms.Resize(config.image_size),
                             transforms.CenterCrop(config.image_size),
@@ -115,6 +123,12 @@ def load_dataloader(p):
         NuclearCataractDataset(root=config.contest_train,
                                   image_list_file=config.train_info_list,
                                   transform=train_transform)
+
+    dataset['valid'] = \
+        NuclearCataractDataset(root=config.contest_train,
+                                  image_list_file=config.train_info_list,
+                                  transform=valid_transform)
+    
     dataset['test'] = \
         NuclearCataractDataset(root=config.contest_train,
                                   image_list_file=config.test_info_list,
@@ -123,7 +137,11 @@ def load_dataloader(p):
     dataset['contest_train'] = \
         NuclearCataractDataset(root=config.contest_train,
                                   image_list_file=config.contest_train_list,
-                                  transform=train_transform)        
+                                  transform=train_transform)
+    dataset['contest_valid'] = \
+        NuclearCataractDataset(root=config.contest_train,
+                                  image_list_file=config.contest_train_list,
+                                  transform=valid_transform)      
 
     dataset['contest_test'] = \
         NuclearCataractDataset(root=config.contest_test,

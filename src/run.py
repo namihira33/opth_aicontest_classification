@@ -5,7 +5,7 @@ import numpy as np
 seeds = list(np.random.choice(10000,1))
 
 c = {
-    'model_name': 'Resnet34','bs': 64,'n_epoch': 81,
+    'model_name': 'Resnet34','bs': 64,'n_epoch': 10000,
     'lr': [8e-5],'seed': seeds,'p':0.25
 }
 

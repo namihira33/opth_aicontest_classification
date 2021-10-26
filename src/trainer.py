@@ -95,23 +95,26 @@ class Trainer():
                     memory[phase] = [[] for x in range(self.n_splits)]
                     memory2[phase] = [[] for x in range(self.n_splits)]
 
+            
+
             self.dataset = load_dataloader(self.c['p'])
             kf = KFold(n_splits=5,shuffle=True,random_state=self.c['seed'])
 
-            for a,(learning_index,valid_index) in enumerate(kf.split(self.dataset['train'])):
+            for a,(learning_index,valid_index) in enumerate(kf.split(self.dataset['contest_train'])):
                 #データセットが切り替わるたびに、ネットワークの重み,バイアスを初期化
                 self.net.apply(init_weights)
                 self.optimizer = optim.SGD(params=self.net.parameters(),lr=self.c['lr'],momentum=0.9)
                     
-                learning_dataset = Subset(self.dataset['train'],learning_index)
+                learning_dataset = Subset(self.dataset['contest_train'],learning_index)
                 self.dataloaders['learning'] = DataLoader(learning_dataset,self.c['bs'],
                 shuffle=True,num_workers=os.cpu_count())
                 
-                valid_dataset = Subset(self.dataset['train'],valid_index)
+                valid_dataset = Subset(self.dataset['contest_valid'],valid_index)
                 self.dataloaders['valid'] = DataLoader(valid_dataset,self.c['bs'],
                 shuffle=True,num_workers=os.cpu_count())
 
                 self.tb_writer = tbx.SummaryWriter()
+                self.earlystopping = EarlyStopping(patience=15,verbose=True,delta=0)
                 for epoch in range(1, self.c['n_epoch']+1):
 
                     learningmae,learningloss,learningr_score \
@@ -129,18 +132,36 @@ class Trainer():
                         memory['valid'][a].append(validmae)
                         memory2['valid'][a].append(validloss)
 
-                        temp = validmae,epoch,self.c
-                        self.prms.append(temp)
+                        if (230<epoch):
+                            self.earlystopping(validmae,self.net,epoch)
+                            if self.earlystopping.early_stop:
+                                print("Early Stopping")
+                                print('Stop epoch : ',epoch)
+                                break
 
-                    if epoch == self.c['n_epoch']:
-                        for a,b,c in zip(valid_indexes,valid_preds,valid_labels):
-                            ensemble_list.append((a,b+21,c+21))              
+                        temp = validmae,epoch,self.c
+                        self.prms.append(temp)          
                 
                 #n_epoch後の処理                
                 self.tb_writer.close()
+
+                #アンサンブル用 予測した値をindexに紐づけて保存
+                self.net.load_state_dict(torch.load(self.earlystopping.path))
+                validmae,_,_,valid_preds,valid_labels,valid_indexes\
+                    = self.execute_epoch(self.earlystopping.epoch,'valid')
+                
+                #最高Valid値を記録。
+                with open("./log" + "/early_log.csv",'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['-'*20 + 'early stopping ' + '-'*20])
+                    writer.writerow(['divide:',a,'stop epoch',epoch,'min_mae',validmae])
+
+                for a,b,c in zip(valid_indexes,valid_preds,valid_labels):
+                    ensemble_list.append((a,b+21,c+21))
+
                 #各分割での学習モデルを使って、テストデータに対する予測を出す。
                 self.dataset = load_dataloader(self.c['p'])
-                test_dataset = self.dataset['test']
+                test_dataset = self.dataset['contest_test']
                 self.dataloaders['test'] = DataLoader(test_dataset,self.c['bs'],
                     shuffle=False,num_workers=os.cpu_count())
 
@@ -172,38 +193,38 @@ class Trainer():
                     break
 
             #分割交差検証後の処理
-            memory['learning'] = list(np.mean(memory['learning'],axis=0))
-            memory2['learning'] = list(np.mean(memory2['valid'],axis=0))
-            if not self.c['evaluate']:
-                memory['valid'] = list(np.mean(memory['valid'],axis=0))
-                memory2['valid'] = list(np.mean(memory2['valid'],axis=0))
-                seed_valid.append(memory['valid'])
+            #memory['learning'] = list(np.mean(memory['learning'],axis=0))
+            #memory2['learning'] = list(np.mean(memory2['valid'],axis=0))
+            #if not self.c['evaluate']:
+            #    memory['valid'] = list(np.mean(memory['valid'],axis=0))
+            #    memory2['valid'] = list(np.mean(memory2['valid'],axis=0))
+            #    seed_valid.append(memory['valid'])
 
             #平均をTensorboardに記録。
-            if self.c['cv']:
-                self.tb_writer = tbx.SummaryWriter()
-                for phase in ['learning','valid']:
-                    for b in range(len(memory[phase])):
-                        tbx_write(self.tb_writer,b+1,phase,memory[phase][b],memory2[phase][b])
-                        with open(self.log_path + "/log.csv",'a') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([self.c,phase,'ValidMAE',memory[phase][b]])
-                    for b in range(len(memory[phase])):
-                        with open(self.log_path + "/log.csv",'a') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([self.c,phase,'ValidLoss',memory2[phase][b]])
-                #JSON形式でTensorboardに保存した値を残しておく。
-                self.tb_writer.export_scalars_to_json('./log/all_scalars.json')
-                self.tb_writer.close()
+            #if self.c['cv']:
+            #    self.tb_writer = tbx.SummaryWriter()
+            #    for phase in ['learning','valid']:
+            #        for b in range(len(memory[phase])):
+            #            tbx_write(self.tb_writer,b+1,phase,memory[phase][b],memory2[phase][b])
+            #            with open(self.log_path + "/log.csv",'a') as f:
+            #                writer = csv.writer(f)
+            #                writer.writerow([self.c,phase,'ValidMAE',memory[phase][b]])
+            #        for b in range(len(memory[phase])):
+            #            with open(self.log_path + "/log.csv",'a') as f:
+            #                writer = csv.writer(f)
+            #                writer.writerow([self.c,phase,'ValidLoss',memory2[phase][b]])
+            #    #JSON形式でTensorboardに保存した値を残しておく。
+            #    self.tb_writer.export_scalars_to_json('./log/all_scalars.json')
+            #    self.tb_writer.close()
 
             #乱数シードiterごとに、平均を取り、これを記録。
             if not ((n_iter+1)%self.n_seeds):
                 temp = self.n_seeds * self.n_splits
-                print(memory['valid'])
-                seed_valid = np.mean(seed_valid,axis=0)
-                validheat.append(memory['valid'])
-                heat_index.append(self.c['lr'])
-                seed_valid = []
+                #print(memory['valid'])
+                #seed_valid = np.mean(seed_valid,axis=0)
+                #validheat.append(memory['valid'])
+                #heat_index.append(self.c['lr'])
+                #seed_valid = []
 
         #パラメータiter後の処理。
 
@@ -220,18 +241,18 @@ class Trainer():
 #       print(np.mean(test_preds,axis=0)[:10])
 
         #学習率・10epoch経過後のヒートマップの描画
-            validheat = [l[::5] for l in validheat[:]]
-            print(validheat)
-            fig,ax = plt.subplots(figsize=(16,8))
-            xtick = list(map(lambda x:5*x-4,list(range(1,len(validheat[0])+1))))
-            xtick = [str(x) + 'ep' for x in xtick]
-            sns.heatmap(validheat,annot=True,cmap='Set3',fmt='.2f',
-                xticklabels=xtick,yticklabels=heat_index,vmin=2.5,vmax=10,
-                cbar_kws = dict(label='Valid Age MAE'))
-            ax.set_ylabel('learning rate')
-            ax.set_xlabel('num of epoch')
-            ax.set_title('num of seeds : ' + str(self.n_seeds))
-            fig.savefig('./log/images/'+self.now + 'train_ep.png')
+        #    validheat = [l[::5] for l in validheat[:]]
+        #    print(validheat)
+        #    fig,ax = plt.subplots(figsize=(16,8))
+        #    xtick = list(map(lambda x:5*x-4,list(range(1,len(validheat[0])+1))))
+        #    xtick = [str(x) + 'ep' for x in xtick]
+        #    sns.heatmap(validheat,annot=True,cmap='Set3',fmt='.2f',
+        #        xticklabels=xtick,yticklabels=heat_index,vmin=2.5,vmax=10,
+        #        cbar_kws = dict(label='Valid Age MAE'))
+        #    ax.set_ylabel('learning rate')
+        #    ax.set_xlabel('num of epoch')
+        #    ax.set_title('num of seeds : ' + str(self.n_seeds))
+        #    fig.savefig('./log/images/'+self.now + 'train_ep.png')
 
         elapsed_time = time.time() - start
         print(f"実行時間 : {elapsed_time:.01f}")
@@ -320,21 +341,21 @@ class Trainer():
         total_loss /= len(preds)
         
         #ハードな答えの出し方
-        preds = np.argmax(preds,1)
+        #preds = np.argmax(preds,1)
         #for i in range(len(preds)):
         #    bins = ret_bins(config.n_classification)
         #    bincenter = (bins[preds[i]+1] + bins[preds[i]])/2
         #    preds[i] = round(bincenter,2)
         
         #ソフトな答えの出し方 加重平均
-        #temp_index = np.arange(config.n_classification)
-        #preds = np.sum(preds*temp_index,axis=1)
+        temp_index = np.arange(config.n_classification)
+        preds = np.sum(preds*temp_index,axis=1)
 
         #エンコーディングをもとに戻す。
         labels = np.argmax(labels,1)
 
 
-        mae = mean_absolute_error(ages, preds)
+        mae = mean_absolute_error(labels, preds)
         r_score = r2_score(labels,preds)
 
         print(
@@ -356,3 +377,50 @@ def tbx_write(tbw,epoch,phase,mae):
 def tbx_write(tbw,epoch,phase,mae,loss):
     tbw.add_scalar('Mean_Loss/{}'.format(phase),loss,epoch)
     tbw.add_scalar('Mean_Mae/{}'.format(phase),mae,epoch)
+
+#early stoppingクラス 拝借
+class EarlyStopping:
+    """earlystoppingクラス"""
+
+    def __init__(self, patience=5, verbose=False, delta=0,path='./model/checkpoint_model.pth'):
+        """引数：最小値の非更新数カウンタ、表示設定、モデル格納path"""
+
+        self.patience = patience    
+        self.verbose = verbose      
+        self.counter = 0
+        self.epoch = 0            
+        self.best_score = None     
+        self.early_stop = False     
+        self.val_loss_min = np.Inf   
+        self.path = path
+        self.delta = delta       
+
+    def __call__(self, val_loss, model,epoch):
+        """
+        特殊(call)メソッド
+        実際に学習ループ内で最小lossを更新したか否かを計算させる部分
+        """
+        score = -val_loss
+
+        if self.best_score is None:  #1Epoch目の処理
+            self.best_score = score   
+            self.checkpoint(val_loss,model,epoch)  
+        elif score < self.best_score + self.delta:  # ベストスコアを更新できなかった場合
+            self.counter += 1   #ストップカウンタを+1
+            if self.verbose:  #表示を有効にした場合は経過を表示
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')  #現在のカウンタを表示する 
+            if self.counter >= self.patience:  #設定カウントを上回ったらストップフラグをTrueに変更
+                self.early_stop = True
+        else:  #ベストスコアを更新した場合
+            self.best_score = score  
+            self.epoch = epoch
+            self.checkpoint(val_loss, model,epoch)  #モデルを保存してスコア表示
+            self.counter = 0  #ストップカウンタリセット
+
+    def checkpoint(self, val_loss, model,epoch):
+        '''ベストスコア更新時に実行されるチェックポイント関数'''
+        if self.verbose:  #表示を有効にした場合は、前回のベストスコアからどれだけ更新したか？を表示
+            print(f'Validation mae decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        torch.save(model.state_dict(), self.path)  #ベストモデルを指定したpathに保存
+        torch.save(model.module.state_dict(),'./model/evaluate.pth') #評価用のpathにベストモデルを保存
+        self.val_loss_min = val_loss 

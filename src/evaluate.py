@@ -69,15 +69,21 @@ class Evaluater():
         self.c['n_epoch'] = '{:0=3}'.format(int(target_data[3]))
         temp = self.n_ex+'_'+self.c['model_name']+'_'+self.c['n_epoch']+'ep.pth'
         model_path = os.path.join(config.MODEL_DIR_PATH,temp)
+        print(model_path)
+
+        temp = './model/evaluate.pth'
+        print(temp)
+        model_path = temp
 
 
         self.net = make_model(self.c['model_name']).to(device)
+        #self.net = nn.DataParallel(self.net)
         self.net.load_state_dict(torch.load(model_path,map_location=device))
 
         #モデル構造を可視化
-        dummy_input = torch.rand(64,3,224,224)
-        with tbx.SummaryWriter() as w:
-            w.add_graph(self.net,(dummy_input.to(device)))
+        #dummy_input = torch.rand(64,3,224,224)
+        #with tbx.SummaryWriter() as w:
+        #    w.add_graph(self.net,(dummy_input.to(device)))
 
     def run(self):
             self.dataset = load_dataloader(0.25)
@@ -213,7 +219,7 @@ class Evaluater():
             ax.set_ylabel('Num of Datas')
             ax.set_title('Predict Age Histgram')
             hist = ax.hist(preds,bins=65)
-            fig.savefig('./log/images/pred_Regression_hist.png')
+            fig.savefig('./log/images/pred_Clasiffication_hist.png')
 
             #threshold = 1.01
             #right += ((preds-labels) < threshold).sum()
